@@ -85,9 +85,7 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
     private static String TAG = "DayView";
     private static boolean DEBUG = false;
     private static boolean DEBUG_SCALING = false;
-    private static final String PERIOD_SPACE = ". ";
     private static float mScale = 0; // Used for supporting different screen densities
-    private static final long INVALID_EVENT_ID = -1; //This is used for remembering a null event
     // Duration of the allday expansion
     private static final long ANIMATION_DURATION = 400;
     // duration of the more allday event text fade
@@ -98,12 +96,6 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
     private static final int EVENTS_CROSS_FADE_DURATION = 400;
     // duration to show the event clicked
     private static final int CLICK_DISPLAY_DURATION = 50;
-    private static final int MENU_AGENDA = 2;
-    private static final int MENU_DAY = 3;
-    private static final int MENU_EVENT_VIEW = 5;
-    private static final int MENU_EVENT_CREATE = 6;
-    private static final int MENU_EVENT_EDIT = 7;
-    private static final int MENU_EVENT_DELETE = 8;
     private static int DEFAULT_CELL_HEIGHT = 64;
     private static int MAX_CELL_HEIGHT = 150;
     private static int MIN_Y_SPAN = 100;
@@ -119,7 +111,11 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
     private static final int FROM_RIGHT = 8;
     private static int mHorizontalSnapBackThreshold = 128;
     private final ContinueScroll mContinueScroll = new ContinueScroll();
-    // Make this visible within the package for more informative debugging
+
+    final SimpleDateFormat hoursFormat = new SimpleDateFormat("HH:mm", Locale.getDefault());
+    final SimpleDateFormat dateFormat = new SimpleDateFormat("EEE dd/MM", Locale.getDefault());
+
+    private Calendar mTempDate;
     private Calendar mBaseDate;
     private Calendar mCurrentTime;
     //Update the current time line every five minutes if the window is left open that long
@@ -129,12 +125,8 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
     private int mFirstJulianDay;
     private int mLoadedFirstJulianDay = -1;
     private int mLastJulianDay;
-    private int mMonthLength;
-    private int mFirstVisibleDate;
-    private int mFirstVisibleDayOfWeek;
     private int[] mEarliestStartHour;    // indexed by the week day offset
     private boolean[] mHasAllDayEvent;   // indexed by the week day offset
-    private String mLongPressTitle;
     private Event mClickedEvent;           // The event the user clicked on
     private Event mSavedClickedEvent;
     private static int mOnDownDelay;
@@ -298,16 +290,13 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
     private static int HOURS_LEFT_MARGIN = 2;
     private static int HOURS_RIGHT_MARGIN = 4;
     private static int HOURS_MARGIN = HOURS_LEFT_MARGIN + HOURS_RIGHT_MARGIN;
-    private static int NEW_EVENT_MARGIN = 4;
-    private static int NEW_EVENT_WIDTH = 2;
-    private static int NEW_EVENT_MAX_LENGTH = 16;
     private static int CURRENT_TIME_LINE_SIDE_BUFFER = 4;
     private static int CURRENT_TIME_LINE_TOP_OFFSET = 2;
-    /* package */ static final int MINUTES_PER_HOUR = 60;
-    /* package */ static final int MINUTES_PER_DAY = MINUTES_PER_HOUR * 24;
-    /* package */ static final int MILLIS_PER_MINUTE = 60 * 1000;
-    /* package */ static final int MILLIS_PER_HOUR = (3600 * 1000);
-    /* package */ static final int MILLIS_PER_DAY = MILLIS_PER_HOUR * 24;
+    static final int MINUTES_PER_HOUR = 60;
+    static final int MINUTES_PER_DAY = MINUTES_PER_HOUR * 24;
+    static final int MILLIS_PER_MINUTE = 60 * 1000;
+    static final int MILLIS_PER_HOUR = (3600 * 1000);
+    static final int MILLIS_PER_DAY = MILLIS_PER_HOUR * 24;
     // More events text will transition between invisible and this alpha
     private static final int MORE_EVENTS_MAX_ALPHA = 0x4C;
     private static int DAY_HEADER_ONE_DAY_LEFT_MARGIN = 0;
@@ -345,7 +334,6 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
     // sizing for "box +n" in allDay events
     private static int EVENT_SQUARE_WIDTH = 10;
     private static int EVENT_LINE_PADDING = 4;
-    private static int NEW_EVENT_HINT_FONT_SIZE = 12;
     private static int mPressedColor;
     private static int mClickedColor;
     private static int mEventTextColor;
@@ -359,7 +347,6 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
     private static int mFutureBgColor;
     private static int mFutureBgColorRes;
     private static int mBgColor;
-    private static int mNewEventHintColor;
     private static int mCalendarHourLabelColor;
     private static int mMoreAlldayEventsTextAlpha = MORE_EVENTS_MAX_ALPHA;
     private float mAnimationDistance = 0;
@@ -457,9 +444,6 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
      * Distance between the mFirstCell and the top of first fully visible hour.
      */
     private int mFirstHourOffset;
-    private String[] mHourStrs;
-    private String[] mDayStrs;
-    private String[] mDayStrs2Letter;
     private final ArrayList<Event> mSelectedEvents = new ArrayList<>();
     private boolean mComputeSelectedEvents;
     private boolean mUpdateToast = true;
@@ -596,9 +580,6 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
                 EVENT_RECT_STROKE_WIDTH *= mScale;
                 EVENT_SQUARE_WIDTH *= mScale;
                 EVENT_LINE_PADDING *= mScale;
-                NEW_EVENT_MARGIN *= mScale;
-                NEW_EVENT_WIDTH *= mScale;
-                NEW_EVENT_MAX_LENGTH *= mScale;
             }
         }
         HOURS_MARGIN = HOURS_LEFT_MARGIN + HOURS_RIGHT_MARGIN;
@@ -672,31 +653,10 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
         p.setAntiAlias(false);
         p = mPaint;
         p.setAntiAlias(true);
-        // Allocate space for 2 weeks worth of weekday names so that we can
-        // easily start the week display at any week day.
-        mDayStrs = new String[14];
-        // Also create an array of 2-letter abbreviations.
-        mDayStrs2Letter = new String[14];
-        for (int i = Calendar.SUNDAY; i <= Calendar.SATURDAY; i++) {
-            int index = i - Calendar.SUNDAY;
-            // e.g. Tue for Tuesday
-            mDayStrs[index] = DateUtils.getDayOfWeekString(i, DateUtils.LENGTH_MEDIUM)
-                    .toUpperCase();
-            mDayStrs[index + 7] = mDayStrs[index];
-            // e.g. Tu for Tuesday
-            mDayStrs2Letter[index] = DateUtils.getDayOfWeekString(i, DateUtils.LENGTH_SHORT)
-                    .toUpperCase();
-            // If we don't have 2-letter day strings, fall back to 1-letter.
-            if (mDayStrs2Letter[index].equals(mDayStrs[index])) {
-                mDayStrs2Letter[index] = DateUtils.getDayOfWeekString(i, DateUtils.LENGTH_SHORTEST);
-            }
-            mDayStrs2Letter[index + 7] = mDayStrs2Letter[index];
-        }
         // Figure out how much space we need for the 3-letter abbrev names
         // in the worst case.
         p.setTextSize(DATE_HEADER_FONT_SIZE);
         p.setTypeface(mBold);
-        String[] dateStrs = {" 28", " 30"};
         p.setTextSize(DAY_HEADER_FONT_SIZE);
         p.setTextSize(HOURS_TEXT_SIZE);
         p.setTypeface(null);
@@ -713,6 +673,7 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
         ta.recycle();
         // Catch long clicks for creating a new event
         mBaseDate = GregorianCalendar.getInstance(TimeZone.getDefault());
+        mTempDate = (Calendar) mBaseDate.clone();
         mEarliestStartHour = new int[mNumDays];
         mHasAllDayEvent = new boolean[mNumDays];
         // mLines is the array of points used with Canvas.drawLines() in
@@ -728,7 +689,6 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
 
     public void handleOnResume() {
         mFutureBgColor = mFutureBgColorRes;
-        mHourStrs = new String[]{"00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23"};
         mFirstDayOfWeek = GregorianCalendar.getInstance().getFirstDayOfWeek();
         mSelectionMode = SELECTION_HIDDEN;
     }
@@ -1187,59 +1147,6 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
         mFirstHourOffset = mFirstHour * (mCellHeight + HOUR_GAP) - mViewStartY;
     }
 
-    private void adjustHourSelection() {
-        if (mSelectionHour < 0) {
-            setSelectedHour(0);
-            if (mMaxAlldayEvents > 0) {
-                mPrevSelectedEvent = null;
-                mSelectionAllday = true;
-            }
-        }
-        if (mSelectionHour > 23) {
-            setSelectedHour(23);
-        }
-        // If the selected hour is at least 2 time slots from the top and
-        // bottom of the screen, then don't scroll the view.
-        if (mSelectionHour < mFirstHour + 1) {
-            // If there are all-days events for the selected day but there
-            // are no more normal events earlier in the day, then jump to
-            // the all-day event area.
-            // Exception 1: allow the user to scroll to 8am with the trackball
-            // before jumping to the all-day event area.
-            // Exception 2: if 12am is on screen, then allow the user to select
-            // 12am before going up to the all-day event area.
-            int daynum = mSelectionDay - mFirstJulianDay;
-            if (daynum < mEarliestStartHour.length && daynum >= 0
-                    && mMaxAlldayEvents > 0
-                    && mEarliestStartHour[daynum] > mSelectionHour
-                    && mFirstHour > 0 && mFirstHour < 8) {
-                mPrevSelectedEvent = null;
-                mSelectionAllday = true;
-                setSelectedHour(mFirstHour + 1);
-                return;
-            }
-            if (mFirstHour > 0) {
-                mFirstHour -= 1;
-                mViewStartY -= (mCellHeight + HOUR_GAP);
-                if (mViewStartY < 0) {
-                    mViewStartY = 0;
-                }
-                return;
-            }
-        }
-        if (mSelectionHour > mFirstHour + mNumHours - 3) {
-            if (mFirstHour < 24 - mNumHours) {
-                mFirstHour += 1;
-                mViewStartY += (mCellHeight + HOUR_GAP);
-                if (mViewStartY > mMaxViewStartY) {
-                    mViewStartY = mMaxViewStartY;
-                }
-            } else if (mFirstHour == 24 - mNumHours && mFirstHourOffset > 0) {
-                mViewStartY = mMaxViewStartY;
-            }
-        }
-    }
-
     void clearCachedEvents() {
         mLastReloadMillis = 0;
     }
@@ -1578,7 +1485,6 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
         // r.right = mViewWidth;
         // p.setColor(mCalendarGridAreaBackground);
         // canvas.drawRect(r, p);
-        final SimpleDateFormat format = new SimpleDateFormat("EEE dd/MM", Locale.getDefault());
         if (mNumDays == 1 && ONE_DAY_HEADER_HEIGHT == 0) {
             return;
         }
@@ -1597,7 +1503,7 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
                     break;
             }
             p.setColor(color);
-            drawDayHeader(format.format(mBaseDate.getTime()), day, canvas, p);
+            drawDayHeader(dateFormat.format(mBaseDate.getTime()), day, canvas, p);
             mBaseDate.add(Calendar.DAY_OF_WEEK, 1);
         }
         mBaseDate.add(Calendar.DAY_OF_WEEK, -mNumDays);
@@ -1654,12 +1560,13 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
 
 
     private void drawHours(Rect r, Canvas canvas, Paint p) {
-        setupHourTextPaint(p);
+        mTempDate = Utils.convertCal(mTempDate);
         int y = HOUR_GAP + mHoursTextHeight + HOURS_TOP_MARGIN;
+        setupHourTextPaint(p);
         for (int i = 0; i < 24; i++) {
-            String time = mHourStrs[i];
-            canvas.drawText(time, HOURS_LEFT_MARGIN, y, p);
+            canvas.drawText(hoursFormat.format(mTempDate.getTimeInMillis()), HOURS_LEFT_MARGIN, y, p);
             y += mCellHeight + HOUR_GAP;
+            mTempDate.add(Calendar.HOUR_OF_DAY, 1);
         }
     }
 

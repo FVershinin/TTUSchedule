@@ -12,9 +12,9 @@
     <dimen name="day_header_bottom_margin">4dip</dimen>
     <dimen name="all_day_bottom_margin">8dip</dimen>
     <dimen name="hours_text_size">12sp</dimen>
-    <dimen name="min_hours_width">24dip</dimen>
-    <dimen name="hours_left_margin">20dip</dimen>
-    <dimen name="hours_right_margin">4dip</dimen>
+    <dimen name="min_hours_width">40dip</dimen>
+    <dimen name="hours_left_margin">35dip</dimen>
+    <dimen name="hours_right_margin">5dip</dimen>
     <dimen name="day_header_height">16dip</dimen>
     <dimen name="day_view_event_text_size">12sp</dimen>
     <dimen name="week_view_event_text_size">12sp</dimen>
