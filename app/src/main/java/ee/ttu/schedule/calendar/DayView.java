@@ -460,7 +460,6 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
      * Width of the time line (list of hours) to the left.
      */
     private int mHoursWidth;
-    private int mDateStrWidth;
     /**
      * Top of the scrollable region i.e. below date labels and all day events
      */
@@ -476,7 +475,6 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
     private String[] mHourStrs;
     private String[] mDayStrs;
     private String[] mDayStrs2Letter;
-    private boolean mIs24HourFormat;
     private final ArrayList<Event> mSelectedEvents = new ArrayList<>();
     private boolean mComputeSelectedEvents;
     private boolean mUpdateToast;
@@ -715,9 +713,7 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
         p.setTextSize(DATE_HEADER_FONT_SIZE);
         p.setTypeface(mBold);
         String[] dateStrs = {" 28", " 30"};
-        mDateStrWidth = computeMaxStringWidth(0, dateStrs, p);
         p.setTextSize(DAY_HEADER_FONT_SIZE);
-        mDateStrWidth += computeMaxStringWidth(0, mDayStrs, p);
         p.setTextSize(HOURS_TEXT_SIZE);
         p.setTypeface(null);
         handleOnResume();
@@ -1804,42 +1800,6 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
         paint.setTextSize(DATE_HEADER_FONT_SIZE);
         paint.setTypeface(Typeface.DEFAULT);
         canvas.drawText(dayString, x, y, paint);
-
-//
-//        int dateNum = mFirstVisibleDate + day;
-//        int x;
-//        paint.setAntiAlias(true);
-//        // Draw day of the month
-//        String dateNumStr = String.valueOf(dateNum);
-//
-//
-//
-//        if (mNumDays > 1) {
-//            float y = DAY_HEADER_HEIGHT - DAY_HEADER_BOTTOM_MARGIN;
-//            // Draw day of the month
-//            x = computeDayLeftPosition(day + 1) - DAY_HEADER_RIGHT_MARGIN;
-//            paint.setTextAlign(Align.RIGHT);
-//            paint.setTextSize(DATE_HEADER_FONT_SIZE);
-//            paint.setTypeface(todayIndex == day ? mBold : Typeface.DEFAULT);
-//            canvas.drawText(dateNumStr, x, y, paint);
-//            // Draw day of the week
-//            x -= paint.measureText(" " + dateNumStr);
-//            paint.setTextSize(DAY_HEADER_FONT_SIZE);
-//            paint.setTypeface(Typeface.DEFAULT);
-//            canvas.drawText(dayString, x, y, paint);
-//        } else {
-//            float y = ONE_DAY_HEADER_HEIGHT - DAY_HEADER_ONE_DAY_BOTTOM_MARGIN;
-//            paint.setTextAlign(Align.LEFT);
-//            // Draw day of the week
-//            x = computeDayLeftPosition(day) + DAY_HEADER_ONE_DAY_LEFT_MARGIN;
-//            paint.setTextSize(DAY_HEADER_FONT_SIZE);
-//            paint.setTypeface(Typeface.DEFAULT);
-//            canvas.drawText(dayString, x, y, paint);
-//            // Draw day of the month
-//            x += paint.measureText(dayString) + DAY_HEADER_ONE_DAY_RIGHT_MARGIN;
-//            paint.setTextSize(DATE_HEADER_FONT_SIZE);
-//            paint.setTypeface(todayIndex == day ? mBold : Typeface.DEFAULT);
-//            canvas.drawText(dateNumStr, x, y, paint);
     }
 
     private void drawGridBackground(Rect r, Canvas canvas, Paint p) {
@@ -1850,7 +1810,7 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
         int linesIndex = 0;
         final float startY = 0;
         final float stopY = HOUR_GAP + 24 * (mCellHeight + HOUR_GAP);
-        float x = mHoursWidth;
+        float x;
         // Draw the inner horizontal grid lines
         p.setColor(mCalendarGridLineInnerHorizontalColor);
         p.setStrokeWidth(GRID_LINE_INNER_WIDTH);
@@ -1920,7 +1880,7 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
             if (lineY < mViewStartY + mViewHeight) {
                 lineY = Math.max(lineY, mViewStartY);
                 r.left = computeDayLeftPosition(todayIndex) + 1;
-                r.right = computeDayLeftPosition(todayIndex + 1);
+                r.right = computeDayLeftPosition(todayIndex + 1)-mHoursWidth;
                 r.top = lineY;
                 r.bottom = mViewStartY + mViewHeight;
                 p.setColor(mFutureBgColor);

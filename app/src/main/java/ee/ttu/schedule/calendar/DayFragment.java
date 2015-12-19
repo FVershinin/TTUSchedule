@@ -22,7 +22,6 @@ import ee.ttu.schedule.calendar.CalendarController.EventType;
 import android.app.Fragment;
 import android.content.Context;
 import android.os.Bundle;
-import android.text.format.Time;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -149,7 +148,7 @@ public class DayFragment extends Fragment implements CalendarController.EventHan
         mProgressBar.setVisibility(View.GONE);
     }
 
-    private void goTo(Calendar goToTime, boolean ignoreTime, boolean animateToday) {
+    private void goTo(Calendar goToTime, boolean ignoreTime) {
         if (mViewSwitcher == null) {
             // The view hasn't been set yet. Just save the time and use it later.
             mSelectedDay = goToTime;
@@ -160,7 +159,7 @@ public class DayFragment extends Fragment implements CalendarController.EventHan
         int diff = currentView.compareToVisibleTimeRange(goToTime);
         if (diff == 0) {
             // In visible range. No need to switch view
-            currentView.setSelected(goToTime, ignoreTime, animateToday);
+            currentView.setSelected(goToTime, ignoreTime, true);
         } else {
             // Figure out which way to animate
             if (diff > 0) {
@@ -174,7 +173,7 @@ public class DayFragment extends Fragment implements CalendarController.EventHan
             if (ignoreTime) {
                 next.setFirstVisibleHour(currentView.getFirstVisibleHour());
             }
-            next.setSelected(goToTime, ignoreTime, animateToday);
+            next.setSelected(goToTime, ignoreTime, true);
             next.reloadEvents();
             mViewSwitcher.showNext();
             next.requestFocus();
@@ -242,8 +241,8 @@ public class DayFragment extends Fragment implements CalendarController.EventHan
 // TODO support select message
             Calendar calendar = (Calendar) mSelectedDay.clone();
             calendar.setTimeInMillis(msg.selectedTime.toMillis(false));
-            goTo(calendar, (msg.extraLong & CalendarController.EXTRA_GOTO_DATE) != 0,
-                    (msg.extraLong & CalendarController.EXTRA_GOTO_TODAY) != 0);
+            goTo(calendar, (msg.extraLong & CalendarController.EXTRA_GOTO_DATE) != 0
+            );
         } else if (msg.eventType == EventType.EVENTS_CHANGED) {
             eventsChanged();
         }
