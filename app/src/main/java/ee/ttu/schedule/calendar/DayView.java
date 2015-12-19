@@ -65,6 +65,7 @@ import android.widget.ViewSwitcher;
 
 import com.vadimstrukov.ttuschedule.R;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
@@ -1693,42 +1694,29 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
         // r.right = mViewWidth;
         // p.setColor(mCalendarGridAreaBackground);
         // canvas.drawRect(r, p);
+        final SimpleDateFormat format = new SimpleDateFormat("EEE dd/MM", Locale.getDefault());
         if (mNumDays == 1 && ONE_DAY_HEADER_HEIGHT == 0) {
             return;
         }
         p.setTypeface(mBold);
         p.setTextAlign(Paint.Align.RIGHT);
         int cell = mFirstJulianDay;
-        String[] dayNames;
-        if (mDateStrWidth < mCellWidth) {
-            dayNames = mDayStrs;
-        } else {
-            dayNames = mDayStrs2Letter;
-        }
         p.setAntiAlias(true);
         for (int day = 0; day < mNumDays; day++, cell++) {
-            int dayOfWeek = day + mFirstVisibleDayOfWeek;
-            if (dayOfWeek >= 14) {
-                dayOfWeek -= 14;
-            }
             int color = mCalendarDateBannerTextColor;
-            if (mNumDays == 1) {
-                if (dayOfWeek == Time.SATURDAY) {
+            switch (mBaseDate.get(Calendar.DAY_OF_WEEK)){
+                case Calendar.SATURDAY:
                     color = mWeek_saturdayColor;
-                } else if (dayOfWeek == Time.SUNDAY) {
+                    break;
+                case Calendar.SUNDAY:
                     color = mWeek_sundayColor;
-                }
-            } else {
-                final int column = day % 7;
-                if (Utils.isSaturday(column, mFirstDayOfWeek)) {
-                    color = mWeek_saturdayColor;
-                } else if (Utils.isSunday(column, mFirstDayOfWeek)) {
-                    color = mWeek_sundayColor;
-                }
+                    break;
             }
             p.setColor(color);
-            drawDayHeader(dayNames[dayOfWeek], day, cell, canvas, p);
+            drawDayHeader(format.format(mBaseDate.getTime()), day, canvas, p);
+            mBaseDate.add(Calendar.DAY_OF_WEEK, 1);
         }
+        mBaseDate.add(Calendar.DAY_OF_WEEK, -mNumDays);
         p.setTypeface(null);
     }
 
@@ -1799,40 +1787,59 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
         p.setAntiAlias(true);
     }
 
-    private void drawDayHeader(String dayStr, int day, int cell, Canvas canvas, Paint p) {
-        int dateNum = mFirstVisibleDate + day;
-        int x;
+    private void drawDayHeader(String dayString, int day, Canvas canvas, Paint paint) {
+        float x = 0, y = 0;
         int todayIndex = Utils.compareDate(mCurrentTime, mBaseDate);
-        p.setAntiAlias(true);
-        // Draw day of the month
-        String dateNumStr = String.valueOf(dateNum);
-        if (mNumDays > 1) {
-            float y = DAY_HEADER_HEIGHT - DAY_HEADER_BOTTOM_MARGIN;
-            // Draw day of the month
-            x = computeDayLeftPosition(day + 1) - DAY_HEADER_RIGHT_MARGIN;
-            p.setTextAlign(Align.RIGHT);
-            p.setTextSize(DATE_HEADER_FONT_SIZE);
-            p.setTypeface(todayIndex == day ? mBold : Typeface.DEFAULT);
-            canvas.drawText(dateNumStr, x, y, p);
-            // Draw day of the week
-            x -= p.measureText(" " + dateNumStr);
-            p.setTextSize(DAY_HEADER_FONT_SIZE);
-            p.setTypeface(Typeface.DEFAULT);
-            canvas.drawText(dayStr, x, y, p);
-        } else {
-            float y = ONE_DAY_HEADER_HEIGHT - DAY_HEADER_ONE_DAY_BOTTOM_MARGIN;
-            p.setTextAlign(Align.LEFT);
-            // Draw day of the week
-            x = computeDayLeftPosition(day) + DAY_HEADER_ONE_DAY_LEFT_MARGIN;
-            p.setTextSize(DAY_HEADER_FONT_SIZE);
-            p.setTypeface(Typeface.DEFAULT);
-            canvas.drawText(dayStr, x, y, p);
-            // Draw day of the month
-            x += p.measureText(dayStr) + DAY_HEADER_ONE_DAY_RIGHT_MARGIN;
-            p.setTextSize(DATE_HEADER_FONT_SIZE);
-            p.setTypeface(todayIndex == day ? mBold : Typeface.DEFAULT);
-            canvas.drawText(dateNumStr, x, y, p);
+        switch (mNumDays){
+            case 1:
+                x = computeDayLeftPosition(day + 1) - DAY_HEADER_RIGHT_MARGIN;
+                y = DAY_HEADER_HEIGHT - DAY_HEADER_BOTTOM_MARGIN;
+                paint.setTextAlign(Align.RIGHT);
+                break;
+            case 3:
+                x = computeDayLeftPosition(day + 1) - DAY_HEADER_RIGHT_MARGIN;
+                y = DAY_HEADER_HEIGHT - DAY_HEADER_BOTTOM_MARGIN;
+                paint.setTextAlign(Align.RIGHT);
         }
+        paint.setTextSize(DATE_HEADER_FONT_SIZE);
+        paint.setTypeface(Typeface.DEFAULT);
+        canvas.drawText(dayString, x, y, paint);
+
+//
+//        int dateNum = mFirstVisibleDate + day;
+//        int x;
+//        paint.setAntiAlias(true);
+//        // Draw day of the month
+//        String dateNumStr = String.valueOf(dateNum);
+//
+//
+//
+//        if (mNumDays > 1) {
+//            float y = DAY_HEADER_HEIGHT - DAY_HEADER_BOTTOM_MARGIN;
+//            // Draw day of the month
+//            x = computeDayLeftPosition(day + 1) - DAY_HEADER_RIGHT_MARGIN;
+//            paint.setTextAlign(Align.RIGHT);
+//            paint.setTextSize(DATE_HEADER_FONT_SIZE);
+//            paint.setTypeface(todayIndex == day ? mBold : Typeface.DEFAULT);
+//            canvas.drawText(dateNumStr, x, y, paint);
+//            // Draw day of the week
+//            x -= paint.measureText(" " + dateNumStr);
+//            paint.setTextSize(DAY_HEADER_FONT_SIZE);
+//            paint.setTypeface(Typeface.DEFAULT);
+//            canvas.drawText(dayString, x, y, paint);
+//        } else {
+//            float y = ONE_DAY_HEADER_HEIGHT - DAY_HEADER_ONE_DAY_BOTTOM_MARGIN;
+//            paint.setTextAlign(Align.LEFT);
+//            // Draw day of the week
+//            x = computeDayLeftPosition(day) + DAY_HEADER_ONE_DAY_LEFT_MARGIN;
+//            paint.setTextSize(DAY_HEADER_FONT_SIZE);
+//            paint.setTypeface(Typeface.DEFAULT);
+//            canvas.drawText(dayString, x, y, paint);
+//            // Draw day of the month
+//            x += paint.measureText(dayString) + DAY_HEADER_ONE_DAY_RIGHT_MARGIN;
+//            paint.setTextSize(DATE_HEADER_FONT_SIZE);
+//            paint.setTypeface(todayIndex == day ? mBold : Typeface.DEFAULT);
+//            canvas.drawText(dateNumStr, x, y, paint);
     }
 
     private void drawGridBackground(Rect r, Canvas canvas, Paint p) {

@@ -8,7 +8,7 @@
     <!--Calendar-->
     <dimen name="date_header_text_size">12sp</dimen>
     <dimen name="day_label_text_size">11sp</dimen>
-    <dimen name="one_day_header_height">0dip</dimen>
+    <dimen name="one_day_header_height">16dip</dimen>
     <dimen name="day_header_bottom_margin">4dip</dimen>
     <dimen name="all_day_bottom_margin">8dip</dimen>
     <dimen name="hours_text_size">12sp</dimen>
