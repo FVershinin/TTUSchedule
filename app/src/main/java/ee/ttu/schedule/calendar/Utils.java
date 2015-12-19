@@ -16,17 +16,6 @@ public class Utils {
         hsv[2] = hsv[2] * 0.8f;
         return Color.HSVToColor(hsv);
     }
-    public static boolean isSaturday(int column, int firstDayOfWeek) {
-        return (firstDayOfWeek == Time.SUNDAY && column == 6)
-                || (firstDayOfWeek == Time.MONDAY && column == 5)
-                || (firstDayOfWeek == Time.SATURDAY && column == 0);
-    }
-
-    public static boolean isSunday(int column, int firstDayOfWeek) {
-        return (firstDayOfWeek == Time.SUNDAY && column == 0)
-                || (firstDayOfWeek == Time.MONDAY && column == 6)
-                || (firstDayOfWeek == Time.SATURDAY && column == 1);
-    }
     public static int getDeclinedColorFromColor(int color) {
         int bg = 0xffffffff;
         int a = 0x66;
@@ -46,5 +35,8 @@ public class Utils {
         calendar.set(Calendar.MINUTE, 0);
         calendar.set(Calendar.HOUR_OF_DAY, 0);
         return calendar;
+    }
+    public static boolean isSameDay(Calendar dayOne, Calendar dayTwo) {
+        return dayOne.get(Calendar.YEAR) == dayTwo.get(Calendar.YEAR) && dayOne.get(Calendar.DAY_OF_YEAR) == dayTwo.get(Calendar.DAY_OF_YEAR);
     }
 }

@@ -1439,24 +1439,26 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
             r.left = 0;
             r.right = mHoursWidth;
             canvas.drawRect(r, p);
-            int startIndex = -1;
-            int todayIndex = Utils.compareDate(mCurrentTime, mBaseDate);
-            if (todayIndex < 0) {
-                // Future
-                startIndex = 0;
-            } else if (todayIndex >= 1 && todayIndex + 1 < mNumDays) {
-                // Multiday - tomorrow is visible.
-                startIndex = todayIndex + 1;
-            }
-            if (startIndex >= 0) {
-                // Draw the future highlight
-                r.top = 0;
-                r.bottom = mFirstCell - 1;
-                r.left = computeDayLeftPosition(startIndex) + 1;
-                r.right = computeDayLeftPosition(mNumDays);
-                p.setColor(mFutureBgColor);
-                p.setStyle(Style.FILL);
-                canvas.drawRect(r, p);
+            r.top = 0;
+            r.bottom = mFirstCell - 1;
+            p.setColor(mFutureBgColor);
+            p.setStyle(Style.FILL);
+            switch (Utils.compareDate(mCurrentTime, mBaseDate)){
+                case -1:
+                    r.left = computeDayLeftPosition(-1) + 1;
+                    r.right = computeDayLeftPosition(mNumDays);
+                    canvas.drawRect(r, p);
+                    break;
+                case 0:
+                    r.left = computeDayLeftPosition(Utils.compareDate(mCurrentTime, mBaseDate) + 1) + 1;
+                    r.right = computeDayLeftPosition(mNumDays);
+                    canvas.drawRect(r, p);
+                    break;
+                case 1:
+                    r.left = computeDayLeftPosition(-1) + 1;
+                    r.right = computeDayLeftPosition(mNumDays);
+//                    canvas.drawRect(r, p);
+                    break;
             }
         }
         if (mSelectionAllday && mSelectionMode != SELECTION_HIDDEN) {
@@ -1502,7 +1504,10 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
                     color = mWeek_sundayColor;
                     break;
             }
-            p.setColor(color);
+            if(Utils.isSameDay(mBaseDate, mCurrentTime))
+                p.setColor(ContextCompat.getColor(mContext, android.R.color.holo_green_dark));
+            else
+                p.setColor(color);
             drawDayHeader(dateFormat.format(mBaseDate.getTime()), day, canvas, p);
             mBaseDate.add(Calendar.DAY_OF_WEEK, 1);
         }
@@ -1544,7 +1549,7 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
             // events on every call.
             drawEvents(cell, day, HOUR_GAP, canvas, p);
             // If this is today
-            if (Utils.compareDate(mCurrentTime, baseDate) == 0) {
+            if (Utils.isSameDay(mBaseDate, mCurrentTime)) {
                 int lineY = mCurrentTime.get(Calendar.HOUR_OF_DAY) * (mCellHeight + HOUR_GAP)
                         + ((mCurrentTime.get(Calendar.MINUTE) * mCellHeight) / 60) + 1;
                 // And the current time shows up somewhere on the screen
@@ -1580,7 +1585,6 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
 
     private void drawDayHeader(String dayString, int day, Canvas canvas, Paint paint) {
         float x = 0, y = 0;
-        int todayIndex = Utils.compareDate(mCurrentTime, mBaseDate);
         switch (mNumDays){
             case 1:
                 x = computeDayLeftPosition(day + 1) - DAY_HEADER_RIGHT_MARGIN;
