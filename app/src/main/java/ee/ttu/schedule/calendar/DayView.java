@@ -1549,7 +1549,7 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
             // events on every call.
             drawEvents(cell, day, HOUR_GAP, canvas, p);
             // If this is today
-            if (Utils.isSameDay(mBaseDate, mCurrentTime)) {
+            if (Utils.isSameDay(baseDate, mCurrentTime)) {
                 int lineY = mCurrentTime.get(Calendar.HOUR_OF_DAY) * (mCellHeight + HOUR_GAP)
                         + ((mCurrentTime.get(Calendar.MINUTE) * mCellHeight) / 60) + 1;
                 // And the current time shows up somewhere on the screen
