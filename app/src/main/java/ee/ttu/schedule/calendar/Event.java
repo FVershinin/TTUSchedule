@@ -278,8 +278,8 @@ public class Event implements Cloneable {
      */
     private static final Cursor instancesQuery(ContentResolver cr, String[] projection,
                                                int startDay, int endDay, String selection, String[] selectionArgs, String orderBy) {
-        String WHERE_CALENDARS_SELECTED = Calendars.VISIBLE + "=?";
-        String[] WHERE_CALENDARS_ARGS = {"1"};
+        String WHERE_CALENDARS_SELECTED = String.format("%1$s = ? and %2$s=?", Calendars.VISIBLE, Calendars.ACCOUNT_TYPE);
+        String[] WHERE_CALENDARS_ARGS = {"1", "ee.ttu.schedule"};
         String DEFAULT_SORT_ORDER = "begin ASC";
         Uri.Builder builder = Instances.CONTENT_BY_DAY_URI.buildUpon();
         ContentUris.appendId(builder, startDay);

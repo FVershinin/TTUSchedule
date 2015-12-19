@@ -128,10 +128,10 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
         contentValues.put(CalendarContract.Calendars.ACCOUNT_TYPE, "ee.ttu.schedule");
         contentValues.put(CalendarContract.Calendars.NAME, "ttu_schedule");
         contentValues.put(CalendarContract.Calendars.CALENDAR_DISPLAY_NAME, "TTU Schedule");
-        contentValues.put(CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL, CalendarContract.Calendars.CAL_ACCESS_READ);
+        contentValues.put(CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL, CalendarContract.Calendars.CAL_ACCESS_NONE);
         contentValues.put(CalendarContract.Calendars.OWNER_ACCOUNT, "TTU Schedule");
         contentValues.put(CalendarContract.Calendars.VISIBLE, 1);
-        contentValues.put(CalendarContract.Calendars.SYNC_EVENTS, 1);
+        contentValues.put(CalendarContract.Calendars.SYNC_EVENTS, 0);
         final Uri uri = getContext().getContentResolver().insert(asSyncAdapter(CalendarContract.Calendars.CONTENT_URI, "TTU Schedule", "ee.ttu.schedule"), contentValues);
         assert uri != null;
         return Long.parseLong(uri.getLastPathSegment());
