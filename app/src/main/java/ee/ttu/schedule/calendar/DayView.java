@@ -908,7 +908,7 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
      * if it is in the visible time range.
      */
     public int compareToVisibleTimeRange(Calendar time) {
-        return mBaseDate.compareTo(time);
+        return Utils.compareDate(time, mBaseDate);
     }
 
     private void recalc() {

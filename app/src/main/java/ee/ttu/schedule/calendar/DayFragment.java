@@ -101,7 +101,6 @@ public class DayFragment extends Fragment implements CalendarController.EventHan
         view.setId(View.generateViewId());
         view.setLayoutParams(new ViewSwitcher.LayoutParams(
                 LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
-        view.setSelected(mSelectedDay, false, false);
         return view;
     }
 
