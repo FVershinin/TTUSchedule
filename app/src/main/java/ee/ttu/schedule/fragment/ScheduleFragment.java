@@ -78,10 +78,10 @@ public class ScheduleFragment extends Fragment implements SwipeRefreshLayout.OnR
         FragmentManager fragmentManager = getFragmentManager();
         switch (WEEK_TYPE) {
             case TYPE_DAY_VIEW:
-                fragment = DayFragment.newInstance(GregorianCalendar.getInstance().getTimeInMillis(), 1);
+                fragment = DayFragment.newInstance(GregorianCalendar.getInstance(TimeZone.getDefault()).getTimeInMillis(), 1);
                 break;
             case TYPE_THREE_DAY_VIEW:
-                fragment = DayFragment.newInstance(GregorianCalendar.getInstance().getTimeInMillis(), 3);
+                fragment = DayFragment.newInstance(GregorianCalendar.getInstance(TimeZone.getDefault()).getTimeInMillis(), 3);
                 break;
         }
         fragmentManager.beginTransaction().add(R.id.fragmentContainer, fragment).commit();

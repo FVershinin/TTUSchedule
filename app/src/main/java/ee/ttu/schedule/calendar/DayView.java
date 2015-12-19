@@ -1844,21 +1844,21 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
     }
 
     /**
-     * @param r
+     * @param rect
      * @param canvas
-     * @param p
+     * @param paint
      */
-    private void drawBgColors(Rect r, Canvas canvas, Paint p) {
+    private void drawBgColors(Rect rect, Canvas canvas, Paint paint) {
         int todayIndex = Utils.compareDate(mCurrentTime, mBaseDate);
         // Draw the hours background color
-        r.top = mDestRect.top;
-        r.bottom = mDestRect.bottom;
-        r.left = 0;
-        r.right = mHoursWidth;
-        p.setColor(mBgColor);
-        p.setStyle(Style.FILL);
-        p.setAntiAlias(false);
-        canvas.drawRect(r, p);
+        rect.top = mDestRect.top;
+        rect.bottom = mDestRect.bottom;
+        rect.left = 0;
+        rect.right = mHoursWidth;
+        paint.setColor(mBgColor);
+        paint.setStyle(Style.FILL);
+        paint.setAntiAlias(false);
+        canvas.drawRect(rect, paint);
         // Draw background for grid area
         if (mNumDays == 1 && todayIndex == 0) {
             // Draw a white background for the time later than current time
@@ -1866,45 +1866,45 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
                     + ((mCurrentTime.get(Calendar.MINUTE) * mCellHeight) / 60) + 1;
             if (lineY < mViewStartY + mViewHeight) {
                 lineY = Math.max(lineY, mViewStartY);
-                r.left = mHoursWidth;
-                r.right = mViewWidth;
-                r.top = lineY;
-                r.bottom = mViewStartY + mViewHeight;
-                p.setColor(mFutureBgColor);
-                canvas.drawRect(r, p);
+                rect.left = mHoursWidth;
+                rect.right = mViewWidth;
+                rect.top = lineY;
+                rect.bottom = mViewStartY + mViewHeight;
+                paint.setColor(mFutureBgColor);
+                canvas.drawRect(rect, paint);
             }
-        } else if (todayIndex <= 0 && todayIndex < mNumDays) {
+        } else if (todayIndex == 0 && todayIndex < mNumDays) {
             // Draw today with a white background for the time later than current time
             int lineY = mCurrentTime.get(Calendar.HOUR_OF_DAY) * (mCellHeight + HOUR_GAP)
                     + ((mCurrentTime.get(Calendar.MINUTE) * mCellHeight) / 60) + 1;
             if (lineY < mViewStartY + mViewHeight) {
                 lineY = Math.max(lineY, mViewStartY);
-                r.left = computeDayLeftPosition(todayIndex) + 1;
-                r.right = computeDayLeftPosition(todayIndex + 1)-mHoursWidth;
-                r.top = lineY;
-                r.bottom = mViewStartY + mViewHeight;
-                p.setColor(mFutureBgColor);
-                canvas.drawRect(r, p);
+                rect.left = computeDayLeftPosition(todayIndex) + 1;
+                rect.right = computeDayLeftPosition(todayIndex + 1);
+                rect.top = lineY;
+                rect.bottom = mViewStartY + mViewHeight;
+                paint.setColor(mFutureBgColor);
+                canvas.drawRect(rect, paint);
             }
             // Paint Tomorrow and later days with future color
             if (todayIndex + 1 < mNumDays) {
-                r.left = computeDayLeftPosition(todayIndex + 1) + 1;
-                r.right = computeDayLeftPosition(mNumDays);
-                r.top = mDestRect.top;
-                r.bottom = mDestRect.bottom;
-                p.setColor(mFutureBgColor);
-                canvas.drawRect(r, p);
+                rect.left = computeDayLeftPosition(todayIndex + 1) + 1;
+                rect.right = computeDayLeftPosition(mNumDays);
+                rect.top = mDestRect.top;
+                rect.bottom = mDestRect.bottom;
+                paint.setColor(mFutureBgColor);
+                canvas.drawRect(rect, paint);
             }
         } else if (todayIndex < 0) {
             // Future
-            r.left = computeDayLeftPosition(0) + 1;
-            r.right = computeDayLeftPosition(mNumDays);
-            r.top = mDestRect.top;
-            r.bottom = mDestRect.bottom;
-            p.setColor(mFutureBgColor);
-            canvas.drawRect(r, p);
+            rect.left = computeDayLeftPosition(0) + 1;
+            rect.right = computeDayLeftPosition(mNumDays);
+            rect.top = mDestRect.top;
+            rect.bottom = mDestRect.bottom;
+            paint.setColor(mFutureBgColor);
+            canvas.drawRect(rect, paint);
         }
-        p.setAntiAlias(true);
+        paint.setAntiAlias(true);
     }
 
     Event getSelectedEvent() {

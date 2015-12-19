@@ -94,12 +94,15 @@ public class DayFragment extends Fragment implements CalendarController.EventHan
         return v;
     }
 
+
+    @Override
     public View makeView() {
         DayView view = new DayView(getActivity(), CalendarController
                 .getInstance(getActivity()), mViewSwitcher, mEventLoader, mNumDays);
         view.setId(View.generateViewId());
         view.setLayoutParams(new ViewSwitcher.LayoutParams(
                 LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
+        view.setFirstVisibleHour(8);
         return view;
     }
 
