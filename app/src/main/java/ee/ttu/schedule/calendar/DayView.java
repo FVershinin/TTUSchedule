@@ -20,15 +20,9 @@ import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ObjectAnimator;
 import android.animation.ValueAnimator;
-import android.app.AlertDialog;
-import android.app.Service;
-import android.content.ContentResolver;
-import android.content.ContentUris;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.res.Resources;
 import android.content.res.TypedArray;
-import android.database.Cursor;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Paint.Align;
@@ -36,11 +30,9 @@ import android.graphics.Paint.Style;
 import android.graphics.Rect;
 import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
-import android.net.Uri;
 import android.os.Handler;
 import android.provider.CalendarContract.Attendees;
-import android.provider.CalendarContract.Calendars;
-import android.provider.CalendarContract.Events;
+import android.support.v4.content.ContextCompat;
 import android.text.Layout.Alignment;
 import android.text.SpannableStringBuilder;
 import android.text.StaticLayout;
@@ -51,21 +43,15 @@ import android.text.format.DateUtils;
 import android.text.format.Time;
 import android.text.style.StyleSpan;
 import android.util.Log;
-import android.view.ContextMenu;
-import android.view.ContextMenu.ContextMenuInfo;
 import android.view.GestureDetector;
 import android.view.Gravity;
-import android.view.KeyEvent;
 import android.view.LayoutInflater;
-import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
 import android.view.ViewConfiguration;
 import android.view.ViewGroup;
 import android.view.WindowManager;
-import android.view.accessibility.AccessibilityEvent;
-import android.view.accessibility.AccessibilityManager;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.view.animation.Animation;
 import android.view.animation.Interpolator;
@@ -79,17 +65,18 @@ import android.widget.ViewSwitcher;
 
 import com.vadimstrukov.ttuschedule.R;
 
-import ee.ttu.schedule.calendar.CalendarController.EventType;
-import ee.ttu.schedule.calendar.CalendarController.ViewType;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Formatter;
 import java.util.GregorianCalendar;
 import java.util.Locale;
+import java.util.TimeZone;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import ee.ttu.schedule.calendar.CalendarController.EventType;
+import ee.ttu.schedule.calendar.CalendarController.ViewType;
 
 /**
  * View for multi-day view. So far only 1 and 7 day have been tested.
@@ -134,31 +121,19 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
      */
     private long mLastPopupEventID;
     protected Context mContext;
-    private static final String[] CALENDARS_PROJECTION = new String[]{
-            Calendars._ID,          // 0
-            Calendars.CALENDAR_ACCESS_LEVEL, // 1
-            Calendars.OWNER_ACCOUNT, // 2
-    };
-    private static final int CALENDARS_INDEX_ACCESS_LEVEL = 1;
-    private static final int CALENDARS_INDEX_OWNER_ACCOUNT = 2;
-    private static final String CALENDARS_WHERE = Calendars._ID + "=%d";
     private static final int FROM_NONE = 0;
     private static final int FROM_ABOVE = 1;
     private static final int FROM_BELOW = 2;
     private static final int FROM_LEFT = 4;
     private static final int FROM_RIGHT = 8;
-    private static final int ACCESS_LEVEL_NONE = 0;
-    private static final int ACCESS_LEVEL_DELETE = 1;
-    private static final int ACCESS_LEVEL_EDIT = 2;
     private static int mHorizontalSnapBackThreshold = 128;
     private final ContinueScroll mContinueScroll = new ContinueScroll();
     // Make this visible within the package for more informative debugging
-    Time mBaseDate;
-    private Time mCurrentTime;
+    private Calendar mBaseDate;
+    private Calendar mCurrentTime;
     //Update the current time line every five minutes if the window is left open that long
     private static final int UPDATE_CURRENT_TIME_DELAY = 300000;
     private final UpdateCurrentTime mUpdateCurrentTime = new UpdateCurrentTime();
-    private int mTodayJulianDay;
     private final Typeface mBold = Typeface.DEFAULT_BOLD;
     private int mFirstJulianDay;
     private int mLoadedFirstJulianDay = -1;
@@ -179,15 +154,6 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
     protected static StringBuilder mStringBuilder = new StringBuilder(50);
     // TODO recreate formatter when locale changes
     protected static Formatter mFormatter = new Formatter(mStringBuilder, Locale.getDefault());
-    private final Runnable mTZUpdater = new Runnable() {
-        @Override
-        public void run() {
-            mBaseDate.timezone = "EET";
-            mBaseDate.normalize(true);
-            mCurrentTime.switchTimezone("EET");
-            invalidate();
-        }
-    };
     // Sets the "clicked" color from the clicked event
     private final Runnable mSetClick = new Runnable() {
         @Override
@@ -283,8 +249,8 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
      * in the method clearCachedEvents()).
      */
     private long mLastReloadMillis;
-    private ArrayList<Event> mEvents = new ArrayList<Event>();
-    private ArrayList<Event> mAllDayEvents = new ArrayList<Event>();
+    private ArrayList<Event> mEvents = new ArrayList<>();
+    private ArrayList<Event> mAllDayEvents = new ArrayList<>();
     private StaticLayout[] mLayouts = null;
     private StaticLayout[] mAllDayLayouts = null;
     private int mSelectionDay;        // Julian day
@@ -368,7 +334,6 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
     private static float NORMAL_FONT_SIZE = 12;
     private static float EVENT_TEXT_FONT_SIZE = 12;
     private static float HOURS_TEXT_SIZE = 12;
-    private static float AMPM_TEXT_SIZE = 9;
     private static int MIN_HOURS_WIDTH = 96;
     private static int MIN_CELL_WIDTH_FOR_TEXT = 20;
     private static final int MAX_EVENT_TEXT_LEN = 500;
@@ -402,7 +367,6 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
     private static int mWeek_saturdayColor;
     private static int mWeek_sundayColor;
     private static int mCalendarDateBannerTextColor;
-    private static int mCalendarAmPmLabel;
     private static int mCalendarGridAreaSelected;
     private static int mCalendarGridLineInnerHorizontalColor;
     private static int mCalendarGridLineInnerVerticalColor;
@@ -512,7 +476,7 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
     private String[] mDayStrs;
     private String[] mDayStrs2Letter;
     private boolean mIs24HourFormat;
-    private final ArrayList<Event> mSelectedEvents = new ArrayList<Event>();
+    private final ArrayList<Event> mSelectedEvents = new ArrayList<>();
     private boolean mComputeSelectedEvents;
     private boolean mUpdateToast;
     private Event mSelectedEvent;
@@ -525,8 +489,6 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
     protected final Drawable mExpandAlldayDrawable;
     protected final Drawable mCollapseAlldayDrawable;
     protected Drawable mAcceptedOrTentativeEventBoxDrawable;
-    private String mAmString;
-    private String mPmString;
     private static int sCounter = 0;
     ScaleGestureDetector mScaleGestureDetector;
     /**
@@ -583,15 +545,12 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
     private final int OVERFLING_DISTANCE;
     private float mLastVelocity;
     private final ScrollInterpolator mHScrollInterpolator;
-    private AccessibilityManager mAccessibilityMgr = null;
-    private boolean mIsAccessibilityEnabled = false;
     private boolean mTouchExplorationEnabled = false;
 
     public DayView(Context context, CalendarController controller,
                    ViewSwitcher viewSwitcher, EventLoader eventLoader, int numDays) {
         super(context);
         mContext = context;
-        initAccessibilityVariables();
         mResources = context.getResources();
         mNumDays = numDays;
         DATE_HEADER_FONT_SIZE = (int) mResources.getDimension(R.dimen.date_header_text_size);
@@ -660,14 +619,12 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
         }
         HOURS_MARGIN = HOURS_LEFT_MARGIN + HOURS_RIGHT_MARGIN;
         DAY_HEADER_HEIGHT = mNumDays == 1 ? ONE_DAY_HEADER_HEIGHT : MULTI_DAY_HEADER_HEIGHT;
-        mCurrentTimeLine = mResources.getDrawable(R.drawable.timeline_indicator_holo_light);
-        mCurrentTimeAnimateLine = mResources
-                .getDrawable(R.drawable.timeline_indicator_activated_holo_light);
-        mTodayHeaderDrawable = mResources.getDrawable(R.drawable.today_blue_week_holo_light);
-        mExpandAlldayDrawable = mResources.getDrawable(R.drawable.ic_expand_holo_light);
-        mCollapseAlldayDrawable = mResources.getDrawable(R.drawable.ic_collapse_holo_light);
-        mAcceptedOrTentativeEventBoxDrawable = mResources
-                .getDrawable(R.drawable.panel_month_event_holo_light);
+        mCurrentTimeLine = ContextCompat.getDrawable(mContext, R.drawable.timeline_indicator_holo_light);
+        mCurrentTimeAnimateLine = ContextCompat.getDrawable(mContext, R.drawable.timeline_indicator_activated_holo_light);
+        mTodayHeaderDrawable = ContextCompat.getDrawable(mContext, R.drawable.today_blue_week_holo_light);
+        mExpandAlldayDrawable = ContextCompat.getDrawable(mContext, R.drawable.ic_expand_holo_light);
+        mCollapseAlldayDrawable = ContextCompat.getDrawable(mContext, R.drawable.ic_collapse_holo_light);
+        mAcceptedOrTentativeEventBoxDrawable = ContextCompat.getDrawable(mContext, R.drawable.panel_month_event_holo_light);
         mEventLoader = eventLoader;
         mEventGeometry = new EventGeometry();
         mEventGeometry.setMinEventHeight(MIN_EVENT_HEIGHT);
@@ -694,6 +651,7 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
 
     @Override
     protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
         if (mHandler == null) {
             mHandler = getHandler();
             mHandler.post(mUpdateCurrentTime);
@@ -707,29 +665,24 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
         setFocusableInTouchMode(true);
         setClickable(true);
         mFirstDayOfWeek = GregorianCalendar.getInstance().getFirstDayOfWeek();
-        mCurrentTime = new Time("EET");
-        long currentTime = System.currentTimeMillis();
-        mCurrentTime.set(currentTime);
-        mTodayJulianDay = Time.getJulianDay(currentTime, mCurrentTime.gmtoff);
-        mWeek_saturdayColor = mResources.getColor(R.color.week_saturday);
-        mWeek_sundayColor = mResources.getColor(R.color.week_sunday);
-        mCalendarDateBannerTextColor = mResources.getColor(R.color.calendar_date_banner_text_color);
-        mFutureBgColorRes = mResources.getColor(R.color.calendar_future_bg_color);
-        mBgColor = mResources.getColor(R.color.calendar_hour_background);
-        mCalendarGridAreaSelected = mResources.getColor(R.color.calendar_grid_area_selected);
-        mCalendarGridLineInnerHorizontalColor = mResources
-                .getColor(R.color.calendar_grid_line_inner_horizontal_color);
-        mCalendarGridLineInnerVerticalColor = mResources
-                .getColor(R.color.calendar_grid_line_inner_vertical_color);
-        mCalendarHourLabelColor = mResources.getColor(R.color.calendar_hour_label);
-        mPressedColor = mResources.getColor(R.color.pressed);
-        mClickedColor = mResources.getColor(R.color.day_event_clicked_background_color);
-        mEventTextColor = mResources.getColor(R.color.calendar_event_text_color);
-        mMoreEventsTextColor = mResources.getColor(R.color.month_event_other_color);
+        mCurrentTime = GregorianCalendar.getInstance(TimeZone.getDefault());
+        mWeek_saturdayColor = ContextCompat.getColor(mContext, R.color.week_saturday);
+        mWeek_sundayColor = ContextCompat.getColor(mContext, R.color.week_sunday);
+        mCalendarDateBannerTextColor = ContextCompat.getColor(mContext, R.color.calendar_date_banner_text_color);
+        mFutureBgColorRes = ContextCompat.getColor(mContext, R.color.calendar_future_bg_color);
+        mBgColor = ContextCompat.getColor(mContext, R.color.calendar_hour_background);
+        mCalendarGridAreaSelected = ContextCompat.getColor(mContext, R.color.calendar_grid_area_selected);
+        mCalendarGridLineInnerHorizontalColor = ContextCompat.getColor(mContext, R.color.calendar_grid_line_inner_horizontal_color);
+        mCalendarGridLineInnerVerticalColor = ContextCompat.getColor(mContext, R.color.calendar_grid_line_inner_vertical_color);
+        mCalendarHourLabelColor = ContextCompat.getColor(mContext, R.color.calendar_hour_label);
+        mPressedColor = ContextCompat.getColor(mContext, R.color.pressed);
+        mClickedColor = ContextCompat.getColor(mContext, R.color.day_event_clicked_background_color);
+        mEventTextColor = ContextCompat.getColor(mContext, R.color.calendar_event_text_color);
+        mMoreEventsTextColor = ContextCompat.getColor(mContext, R.color.month_event_other_color);
         mEventTextPaint.setTextSize(EVENT_TEXT_FONT_SIZE);
         mEventTextPaint.setTextAlign(Paint.Align.LEFT);
         mEventTextPaint.setAntiAlias(true);
-        int gridLineColor = mResources.getColor(R.color.calendar_grid_line_highlight_color);
+        int gridLineColor = ContextCompat.getColor(mContext, R.color.calendar_grid_line_highlight_color);
         Paint p = mSelectionPaint;
         p.setColor(gridLineColor);
         p.setStyle(Style.FILL);
@@ -767,11 +720,7 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
         p.setTextSize(HOURS_TEXT_SIZE);
         p.setTypeface(null);
         handleOnResume();
-        mAmString = DateUtils.getAMPMString(Calendar.AM).toUpperCase();
-        mPmString = DateUtils.getAMPMString(Calendar.PM).toUpperCase();
-        String[] ampm = {mAmString, mPmString};
-        p.setTextSize(AMPM_TEXT_SIZE);
-        mHoursWidth = Math.max(HOURS_MARGIN, computeMaxStringWidth(mHoursWidth, ampm, p)
+        mHoursWidth = Math.max(HOURS_MARGIN, computeMaxStringWidth(mHoursWidth, new String[]{}, p)
                 + HOURS_RIGHT_MARGIN);
         mHoursWidth = Math.max(MIN_HOURS_WIDTH, mHoursWidth);
         LayoutInflater inflater;
@@ -791,9 +740,7 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
         // Enable touching the popup window
         mPopupView.setOnClickListener(this);
         // Catch long clicks for creating a new event
-        mBaseDate = new Time("EET");
-        long millis = System.currentTimeMillis();
-        mBaseDate.set(millis);
+        mBaseDate = GregorianCalendar.getInstance(TimeZone.getDefault());
         mEarliestStartHour = new int[mNumDays];
         mHasAllDayEvent = new boolean[mNumDays];
         // mLines is the array of points used with Canvas.drawLines() in
@@ -817,19 +764,10 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
     }
 
     public void handleOnResume() {
-        initAccessibilityVariables();
         mFutureBgColor = mFutureBgColorRes;
-        mIs24HourFormat = DateFormat.is24HourFormat(mContext);
-        mHourStrs = new String[]{"00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "34"};
+        mHourStrs = new String[]{"00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23"};
         mFirstDayOfWeek = GregorianCalendar.getInstance().getFirstDayOfWeek();
         mSelectionMode = SELECTION_HIDDEN;
-    }
-
-    private void initAccessibilityVariables() {
-        mAccessibilityMgr = (AccessibilityManager) mContext
-                .getSystemService(Service.ACCESSIBILITY_SERVICE);
-        mIsAccessibilityEnabled = mAccessibilityMgr != null && mAccessibilityMgr.isEnabled();
-        mTouchExplorationEnabled = isTouchExplorationEnabled();
     }
 
     /**
@@ -838,24 +776,7 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
      * @return selected time in UTC milliseconds since the epoch.
      */
     long getSelectedTimeInMillis() {
-        Time time = new Time(mBaseDate);
-        time.setJulianDay(mSelectionDay);
-        time.hour = mSelectionHour;
-        // We ignore the "isDst" field because we want normalize() to figure
-        // out the correct DST value and not adjust the selected time based
-        // on the current setting of DST.
-        return time.normalize(true /* ignore isDst */);
-    }
-
-    Time getSelectedTime() {
-        Time time = new Time(mBaseDate);
-        time.setJulianDay(mSelectionDay);
-        time.hour = mSelectionHour;
-        // We ignore the "isDst" field because we want normalize() to figure
-        // out the correct DST value and not adjust the selected time based
-        // on the current setting of DST.
-        time.normalize(true /* ignore isDst */);
-        return time;
+        return mBaseDate.getTimeInMillis();
     }
 
     /**
@@ -876,30 +797,27 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
         mFirstHourOffset = 0;
     }
 
-    public void setSelected(Time time, boolean ignoreTime, boolean animateToday) {
-        mBaseDate.set(time);
-        setSelectedHour(mBaseDate.hour);
+    public void setSelected(Calendar time, boolean ignoreTime, boolean animateToday) {
+        mBaseDate = time;
         setSelectedEvent(null);
         mPrevSelectedEvent = null;
-        long millis = mBaseDate.toMillis(false /* use isDst */);
-        setSelectedDay(Time.getJulianDay(millis, mBaseDate.gmtoff));
         mSelectedEvents.clear();
         mComputeSelectedEvents = true;
         int gotoY = Integer.MIN_VALUE;
         if (!ignoreTime && mGridAreaHeight != -1) {
             int lastHour = 0;
-            if (mBaseDate.hour < mFirstHour) {
+            if (mBaseDate.get(Calendar.HOUR_OF_DAY) < mFirstHour) {
                 // Above visible region
-                gotoY = mBaseDate.hour * (mCellHeight + HOUR_GAP);
+                gotoY = mBaseDate.get(Calendar.HOUR_OF_DAY) * (mCellHeight + HOUR_GAP);
             } else {
                 lastHour = (mGridAreaHeight - mFirstHourOffset) / (mCellHeight + HOUR_GAP)
                         + mFirstHour;
-                if (mBaseDate.hour >= lastHour) {
+                if (mBaseDate.get(Calendar.HOUR_OF_DAY) >= lastHour) {
                     // Below visible region
                     // target hour + 1 (to give it room to see the event) -
                     // grid height (to get the y of the top of the visible
                     // region)
-                    gotoY = (int) ((mBaseDate.hour + 1 + mBaseDate.minute / 60.0f)
+                    gotoY = (int) ((mBaseDate.get(Calendar.HOUR_OF_DAY) + 1 + mBaseDate.get(Calendar.MINUTE) / 60.0f)
                             * (mCellHeight + HOUR_GAP) - mGridAreaHeight);
                 }
             }
@@ -962,19 +880,9 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
         invalidate();
     }
 
-    public Time getSelectedDay() {
-        Time time = new Time(mBaseDate);
-        time.setJulianDay(mSelectionDay);
-        time.hour = mSelectionHour;
-        // We ignore the "isDst" field because we want normalize() to figure
-        // out the correct DST value and not adjust the selected time based
-        // on the current setting of DST.
-        time.normalize(true /* ignore isDst */);
-        return time;
-    }
-
     public void updateTitle() {
-        Time start = new Time(mBaseDate);
+        Time start = new Time();
+        start.set(mBaseDate.getTimeInMillis());
         start.normalize(true);
         Time end = new Time(start);
         end.monthDay += mNumDays - 1;
@@ -999,66 +907,15 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
      * range, a positive number if "time" is after the visible time range, and 0
      * if it is in the visible time range.
      */
-    public int compareToVisibleTimeRange(Time time) {
-        int savedHour = mBaseDate.hour;
-        int savedMinute = mBaseDate.minute;
-        int savedSec = mBaseDate.second;
-        mBaseDate.hour = 0;
-        mBaseDate.minute = 0;
-        mBaseDate.second = 0;
-        if (DEBUG) {
-            Log.d(TAG, "Begin " + mBaseDate.toString());
-            Log.d(TAG, "Diff  " + time.toString());
-        }
-        // Compare beginning of range
-        int diff = Time.compare(time, mBaseDate);
-        if (diff > 0) {
-            // Compare end of range
-            mBaseDate.monthDay += mNumDays;
-            mBaseDate.normalize(true);
-            diff = Time.compare(time, mBaseDate);
-            if (DEBUG) Log.d(TAG, "End   " + mBaseDate.toString());
-            mBaseDate.monthDay -= mNumDays;
-            mBaseDate.normalize(true);
-            if (diff < 0) {
-                // in visible time
-                diff = 0;
-            } else if (diff == 0) {
-                // Midnight of following day
-                diff = 1;
-            }
-        }
-        if (DEBUG) Log.d(TAG, "Diff: " + diff);
-        mBaseDate.hour = savedHour;
-        mBaseDate.minute = savedMinute;
-        mBaseDate.second = savedSec;
-        return diff;
+    public int compareToVisibleTimeRange(Calendar time) {
+        return mBaseDate.compareTo(time);
     }
 
     private void recalc() {
-        // Set the base date to the beginning of the week if we are displaying
-        // 7 days at a time.
-        if (mNumDays == 7) {
-            adjustToBeginningOfWeek(mBaseDate);
-        }
-        final long start = mBaseDate.toMillis(false /* use isDst */);
-        mFirstJulianDay = Time.getJulianDay(start, mBaseDate.gmtoff);
+        Time time = new Time();
+        time.set(mBaseDate.getTimeInMillis());
+        mFirstJulianDay = Time.getJulianDay(mBaseDate.getTimeInMillis(), time.gmtoff);
         mLastJulianDay = mFirstJulianDay + mNumDays - 1;
-        mMonthLength = mBaseDate.getActualMaximum(Time.MONTH_DAY);
-        mFirstVisibleDate = mBaseDate.monthDay;
-        mFirstVisibleDayOfWeek = mBaseDate.weekDay;
-    }
-
-    private void adjustToBeginningOfWeek(Time time) {
-        int dayOfWeek = time.weekDay;
-        int diff = dayOfWeek - mFirstDayOfWeek;
-        if (diff != 0) {
-            if (diff < 0) {
-                diff += 7;
-            }
-            time.monthDay -= diff;
-            time.normalize(true /* ignore isDst */);
-        }
     }
 
     @Override
@@ -1207,12 +1064,8 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
         view.setSelectedEvent(null);
         view.mPrevSelectedEvent = null;
         view.mFirstDayOfWeek = mFirstDayOfWeek;
-        if (view.mEvents.size() > 0) {
-            view.mSelectionAllday = mSelectionAllday;
-        } else {
-            view.mSelectionAllday = false;
-        }
-        // Redraw the screen so that the selection box will be redrawn.  We may
+        view.mSelectionAllday = view.mEvents.size() > 0 && mSelectionAllday;
+// Redraw the screen so that the selection box will be redrawn.  We may
         // have scrolled to a different part of the day in some other view
         // so the selection box in this view may no longer be visible.
         view.recalc();
@@ -1246,9 +1099,6 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
                     mController.sendEventRelatedEventWithExtra(this, EventType.CREATE_EVENT, -1,
                             startMillis, endMillis, -1, -1, extraLong, -1);
                 } else {
-                    if (mIsAccessibilityEnabled) {
-                        mAccessibilityMgr.interrupt();
-                    }
                     // Switch to the EventInfo view
                     mController.sendEventRelatedEvent(this, EventType.VIEW_EVENT, selectedEvent.id,
                             selectedEvent.startMillis, selectedEvent.endMillis, 0, 0,
@@ -1259,9 +1109,6 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
                 // unambiguous event, then view that event.  Otherwise go to
                 // Day/Agenda view.
                 if (mSelectedEvents.size() == 1) {
-                    if (mIsAccessibilityEnabled) {
-                        mAccessibilityMgr.interrupt();
-                    }
                     mController.sendEventRelatedEvent(this, EventType.VIEW_EVENT, selectedEvent.id,
                             selectedEvent.startMillis, selectedEvent.endMillis, 0, 0,
                             getSelectedTimeInMillis());
@@ -1282,9 +1129,6 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
                 mController.sendEventRelatedEventWithExtra(this, EventType.CREATE_EVENT, -1,
                         startMillis, endMillis, -1, -1, extraLong, -1);
             } else {
-                if (mIsAccessibilityEnabled) {
-                    mAccessibilityMgr.interrupt();
-                }
                 mController.sendEventRelatedEvent(this, EventType.VIEW_EVENT, selectedEvent.id,
                         selectedEvent.startMillis, selectedEvent.endMillis, 0, 0,
                         getSelectedTimeInMillis());
@@ -1322,41 +1166,17 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
         return true;
     }
 
-    private boolean isTouchExplorationEnabled() {
-        return mIsAccessibilityEnabled && mAccessibilityMgr.isTouchExplorationEnabled();
-    }
-
-    /**
-     * @param b
-     * @param calEvent
-     */
-    private void appendEventAccessibilityString(StringBuilder b, Event calEvent) {
-        b.append(calEvent.getTitleAndLocation());
-        b.append(PERIOD_SPACE);
-        String when;
-        int flags = DateUtils.FORMAT_SHOW_DATE;
-        if (calEvent.allDay) {
-            flags |= DateUtils.FORMAT_UTC | DateUtils.FORMAT_SHOW_WEEKDAY;
-        } else {
-            flags |= DateUtils.FORMAT_SHOW_TIME;
-            if (DateFormat.is24HourFormat(mContext)) {
-                flags |= DateUtils.FORMAT_24HOUR;
-            }
-        }
-        when = DateUtils.formatDateRange(mContext, calEvent.startMillis, calEvent.endMillis, flags);
-        b.append(when);
-        b.append(PERIOD_SPACE);
-    }
-
     private class GotoBroadcaster implements Animation.AnimationListener {
         private final int mCounter;
         private final Time mStart;
         private final Time mEnd;
 
-        public GotoBroadcaster(Time start, Time end) {
+        public GotoBroadcaster(Calendar start, Calendar end) {
             mCounter = ++sCounter;
-            mStart = start;
-            mEnd = end;
+            mStart = new Time();
+            mEnd = new Time();
+            mStart.set(start.getTimeInMillis());
+            mEnd.set(end.getTimeInMillis());
         }
 
         @Override
@@ -1402,21 +1222,15 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
             outFromXValue = progress;
             outToXValue = 1.0f;
         }
-        final Time start = new Time(mBaseDate.timezone);
-        start.set(mController.getTime());
+        final Calendar start = (Calendar) mBaseDate.clone();
+        start.setTimeInMillis(mController.getTime());
         if (forward) {
-            start.monthDay += mNumDays;
+            start.add(Calendar.DAY_OF_MONTH, mNumDays);
         } else {
-            start.monthDay -= mNumDays;
+            start.add(Calendar.DAY_OF_MONTH, -mNumDays);
         }
-        mController.setTime(start.normalize(true));
-        Time newSelected = start;
-        if (mNumDays == 7) {
-            newSelected = new Time(start);
-            adjustToBeginningOfWeek(start);
-        }
-        final Time end = new Time(start);
-        end.monthDay += mNumDays - 1;
+        final Calendar end = (Calendar) start.clone();
+        end.add(Calendar.DAY_OF_MONTH, mNumDays - 1);
         // We have to allocate these animation objects each time we switch views
         // because that is the only way to set the animation parameters.
         TranslateAnimation inAnimation = new TranslateAnimation(
@@ -1441,7 +1255,7 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
         view.cleanup();
         mViewSwitcher.showNext();
         view = (DayView) mViewSwitcher.getCurrentView();
-        view.setSelected(newSelected, true, false);
+        view.setSelected(start, true, false);
         view.requestFocus();
         view.reloadEvents();
         view.updateTitle();
@@ -1531,7 +1345,6 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
                 if (mViewStartY > mMaxViewStartY) {
                     mViewStartY = mMaxViewStartY;
                 }
-                return;
             } else if (mFirstHour == 24 - mNumHours && mFirstHourOffset > 0) {
                 mViewStartY = mMaxViewStartY;
             }
@@ -1555,13 +1368,12 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
 //            return;
 //        }
         // Make sure our time zones are up to date
-        mTZUpdater.run();
         setSelectedEvent(null);
         mPrevSelectedEvent = null;
         mSelectedEvents.clear();
         // The start date is the beginning of the week at 12am
         Time weekStart = new Time("EET");
-        weekStart.set(mBaseDate);
+        weekStart.set(mBaseDate.getTimeInMillis());
         weekStart.hour = 0;
         weekStart.minute = 0;
         weekStart.second = 0;
@@ -1573,14 +1385,14 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
         mLastReloadMillis = millis;
         // load events in the background
 //        mContext.startProgressSpinner();
-        final ArrayList<Event> events = new ArrayList<Event>();
+        final ArrayList<Event> events = new ArrayList<>();
         mEventLoader.loadEventsInBackground(mNumDays, events, mFirstJulianDay, new Runnable() {
             public void run() {
                 boolean fadeinEvents = mFirstJulianDay != mLoadedFirstJulianDay;
                 mEvents = events;
                 mLoadedFirstJulianDay = mFirstJulianDay;
                 if (mAllDayEvents == null) {
-                    mAllDayEvents = new ArrayList<Event>();
+                    mAllDayEvents = new ArrayList<>();
                 } else {
                     mAllDayEvents.clear();
                 }
@@ -1736,7 +1548,7 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
             DayView nextView = (DayView) mViewSwitcher.getNextView();
             // Prevent infinite recursive calls to onDraw().
             nextView.mTouchMode = TOUCH_MODE_INITIAL_STATE;
-            nextView.onDraw(canvas);
+            nextView.draw(canvas);
             // Move it back for this view
             canvas.translate(-xTranslate, 0);
         } else {
@@ -1783,10 +1595,6 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
         }
         drawScrollLine(r, canvas, p);
         drawDayHeaderLoop(r, canvas, p);
-        // Draw the AM and PM indicators if we're in 12 hour mode
-        if (!mIs24HourFormat) {
-            drawAmPm(canvas, p);
-        }
     }
 
     // This isn't really the upper-left corner. It's the square area just
@@ -1840,7 +1648,7 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
             r.right = mHoursWidth;
             canvas.drawRect(r, p);
             int startIndex = -1;
-            int todayIndex = mTodayJulianDay - mFirstJulianDay;
+            int todayIndex = Utils.compareDate(mCurrentTime, mBaseDate);
             if (todayIndex < 0) {
                 // Future
                 startIndex = 0;
@@ -1924,27 +1732,6 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
         p.setTypeface(null);
     }
 
-    private void drawAmPm(Canvas canvas, Paint p) {
-        p.setColor(mCalendarAmPmLabel);
-        p.setTextSize(AMPM_TEXT_SIZE);
-        p.setTypeface(mBold);
-        p.setAntiAlias(true);
-        p.setTextAlign(Paint.Align.RIGHT);
-        String text = mAmString;
-        if (mFirstHour >= 12) {
-            text = mPmString;
-        }
-        int y = mFirstCell + mFirstHourOffset + 2 * mHoursTextHeight + HOUR_GAP;
-        canvas.drawText(text, HOURS_LEFT_MARGIN, y, p);
-        if (mFirstHour < 12 && mFirstHour + mNumHours > 12) {
-            // Also draw the "PM"
-            text = mPmString;
-            y = mFirstCell + mFirstHourOffset + (12 - mFirstHour) * (mCellHeight + HOUR_GAP)
-                    + 2 * mHoursTextHeight + HOUR_GAP;
-            canvas.drawText(text, HOURS_LEFT_MARGIN, y, p);
-        }
-    }
-
     private void drawCurrentTimeLine(Rect r, final int day, final int top, Canvas canvas,
                                      Paint p) {
         r.left = computeDayLeftPosition(day) - CURRENT_TIME_LINE_SIDE_BUFFER + 1;
@@ -1961,6 +1748,7 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
     }
 
     private void doDraw(Canvas canvas) {
+        final Calendar baseDate = (Calendar) mBaseDate.clone();
         Paint p = mPaint;
         Rect r = mRect;
         if (mFutureBgColor != 0) {
@@ -1978,14 +1766,15 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
             // events on every call.
             drawEvents(cell, day, HOUR_GAP, canvas, p);
             // If this is today
-            if (cell == mTodayJulianDay) {
-                int lineY = mCurrentTime.hour * (mCellHeight + HOUR_GAP)
-                        + ((mCurrentTime.minute * mCellHeight) / 60) + 1;
+            if (Utils.compareDate(mCurrentTime, baseDate) == 0) {
+                int lineY = mCurrentTime.get(Calendar.HOUR_OF_DAY) * (mCellHeight + HOUR_GAP)
+                        + ((mCurrentTime.get(Calendar.MINUTE) * mCellHeight) / 60) + 1;
                 // And the current time shows up somewhere on the screen
                 if (lineY >= mViewStartY && lineY < mViewStartY + mViewHeight - 2) {
                     drawCurrentTimeLine(r, day, lineY, canvas, p);
                 }
             }
+            baseDate.add(Calendar.DAY_OF_WEEK, 1);
         }
         p.setAntiAlias(true);
         p.setAlpha(alpha);
@@ -2013,11 +1802,8 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
     private void drawDayHeader(String dayStr, int day, int cell, Canvas canvas, Paint p) {
         int dateNum = mFirstVisibleDate + day;
         int x;
-        if (dateNum > mMonthLength) {
-            dateNum -= mMonthLength;
-        }
+        int todayIndex = Utils.compareDate(mCurrentTime, mBaseDate);
         p.setAntiAlias(true);
-        int todayIndex = mTodayJulianDay - mFirstJulianDay;
         // Draw day of the month
         String dateNumStr = String.valueOf(dateNum);
         if (mNumDays > 1) {
@@ -2096,7 +1882,7 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
      * @param p
      */
     private void drawBgColors(Rect r, Canvas canvas, Paint p) {
-        int todayIndex = mTodayJulianDay - mFirstJulianDay;
+        int todayIndex = Utils.compareDate(mCurrentTime, mBaseDate);
         // Draw the hours background color
         r.top = mDestRect.top;
         r.bottom = mDestRect.bottom;
@@ -2109,8 +1895,8 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
         // Draw background for grid area
         if (mNumDays == 1 && todayIndex == 0) {
             // Draw a white background for the time later than current time
-            int lineY = mCurrentTime.hour * (mCellHeight + HOUR_GAP)
-                    + ((mCurrentTime.minute * mCellHeight) / 60) + 1;
+            int lineY = mCurrentTime.get(Calendar.HOUR_OF_DAY) * (mCellHeight + HOUR_GAP)
+                    + ((mCurrentTime.get(Calendar.MINUTE) * mCellHeight) / 60) + 1;
             if (lineY < mViewStartY + mViewHeight) {
                 lineY = Math.max(lineY, mViewStartY);
                 r.left = mHoursWidth;
@@ -2120,10 +1906,10 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
                 p.setColor(mFutureBgColor);
                 canvas.drawRect(r, p);
             }
-        } else if (todayIndex >= 0 && todayIndex < mNumDays) {
+        } else if (todayIndex <= 0 && todayIndex < mNumDays) {
             // Draw today with a white background for the time later than current time
-            int lineY = mCurrentTime.hour * (mCellHeight + HOUR_GAP)
-                    + ((mCurrentTime.minute * mCellHeight) / 60) + 1;
+            int lineY = mCurrentTime.get(Calendar.HOUR_OF_DAY) * (mCellHeight + HOUR_GAP)
+                    + ((mCurrentTime.get(Calendar.MINUTE) * mCellHeight) / 60) + 1;
             if (lineY < mViewStartY + mViewHeight) {
                 lineY = Math.max(lineY, mViewStartY);
                 r.left = computeDayLeftPosition(todayIndex) + 1;
@@ -2186,9 +1972,8 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
 
     private int computeMaxStringWidth(int currentMax, String[] strings, Paint p) {
         float maxWidthF = 0.0f;
-        int len = strings.length;
-        for (int i = 0; i < len; i++) {
-            float width = p.measureText(strings[i]);
+        for (String string : strings) {
+            float width = p.measureText(string);
             maxWidthF = Math.max(width, maxWidthF);
         }
         int maxWidth = (int) (maxWidthF + 0.5);
@@ -3055,7 +2840,7 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
         final boolean empty = TextUtils.isEmpty(event.location);
         whereView.setVisibility(empty ? View.GONE : View.VISIBLE);
         if (!empty) whereView.setText(event.location);
-        mPopup.showAtLocation(this, Gravity.BOTTOM | Gravity.LEFT, mHoursWidth, 5);
+        mPopup.showAtLocation(this, Gravity.BOTTOM | Gravity.START, mHoursWidth, 5);
         mHandler.postDelayed(mDismissPopup, POPUP_DISMISS_DELAY);
     }
 
@@ -3248,7 +3033,8 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
         boolean validPosition = setSelectionFromPosition(x, y, false);
         if (!validPosition) {
             if (y < DAY_HEADER_HEIGHT) {
-                Time selectedTime = new Time(mBaseDate);
+                Time selectedTime = new Time();
+                selectedTime.set(mBaseDate.getTimeInMillis());
                 selectedTime.setJulianDay(mSelectionDay);
                 selectedTime.hour = mSelectionHour;
                 selectedTime.normalize(true /* ignore isDst */);
@@ -3272,10 +3058,6 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
                     getSelectedTimeInMillis(), 0, (int) ev.getRawX(), (int) ev.getRawY(),
                     extraLong, -1);
         } else if (mSelectedEvent != null) {
-            // If the tap is on an event, launch the "View event" view
-            if (mIsAccessibilityEnabled) {
-                mAccessibilityMgr.interrupt();
-            }
             mSelectionMode = SELECTION_HIDDEN;
             int yLocation =
                     (int) ((mSelectedEvent.top + mSelectedEvent.bottom) / 2);
@@ -3294,7 +3076,8 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
             }
         } else {
             // Select time
-            Time startTime = new Time(mBaseDate);
+            Time startTime = new Time();
+            startTime.set(mBaseDate.getTimeInMillis());
             startTime.setJulianDay(mSelectionDay);
             startTime.hour = mSelectionHour;
             startTime.normalize(true /* ignore isDst */);
@@ -3485,19 +3268,18 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
     private boolean initNextView(int deltaX) {
         // Change the view to the previous day or week
         DayView view = (DayView) mViewSwitcher.getNextView();
-        Time date = view.mBaseDate;
-        date.set(mBaseDate);
+        Calendar date = view.mBaseDate;
+        date.setTimeInMillis(mBaseDate.getTimeInMillis());
         boolean switchForward;
         if (deltaX > 0) {
-            date.monthDay -= mNumDays;
+            date.add(Calendar.DAY_OF_MONTH, -mNumDays);
             view.setSelectedDay(mSelectionDay - mNumDays);
             switchForward = false;
         } else {
-            date.monthDay += mNumDays;
+            date.add(Calendar.DAY_OF_MONTH, mNumDays);
             view.setSelectedDay(mSelectionDay + mNumDays);
             switchForward = true;
         }
-        date.normalize(true /* ignore isDst */);
         initView(view);
         view.layout(getLeft(), getTop(), getRight(), getBottom());
         view.reloadEvents();
@@ -3650,53 +3432,8 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
                 return true;
             default:
                 if (DEBUG) Log.e(TAG, "Not MotionEvent " + ev.toString());
-                if (mGestureDetector.onTouchEvent(ev)) {
-                    return true;
-                }
-                return super.onTouchEvent(ev);
+                return mGestureDetector.onTouchEvent(ev) || super.onTouchEvent(ev);
         }
-    }
-
-    private static int getEventAccessLevel(Context context, Event e) {
-        ContentResolver cr = context.getContentResolver();
-        int accessLevel = Calendars.CAL_ACCESS_NONE;
-        // Get the calendar id for this event
-        Cursor cursor = cr.query(ContentUris.withAppendedId(Events.CONTENT_URI, e.id),
-                new String[]{Events.CALENDAR_ID},
-                null /* selection */,
-                null /* selectionArgs */,
-                null /* sort */);
-        if (cursor == null) {
-            return ACCESS_LEVEL_NONE;
-        }
-        if (cursor.getCount() == 0) {
-            cursor.close();
-            return ACCESS_LEVEL_NONE;
-        }
-        cursor.moveToFirst();
-        long calId = cursor.getLong(0);
-        cursor.close();
-        Uri uri = Calendars.CONTENT_URI;
-        String where = String.format(CALENDARS_WHERE, calId);
-        cursor = cr.query(uri, CALENDARS_PROJECTION, where, null, null);
-        String calendarOwnerAccount = null;
-        if (cursor != null) {
-            cursor.moveToFirst();
-            accessLevel = cursor.getInt(CALENDARS_INDEX_ACCESS_LEVEL);
-            calendarOwnerAccount = cursor.getString(CALENDARS_INDEX_OWNER_ACCOUNT);
-            cursor.close();
-        }
-        if (accessLevel < Calendars.CAL_ACCESS_CONTRIBUTOR) {
-            return ACCESS_LEVEL_NONE;
-        }
-        if (e.guestsCanModify) {
-            return ACCESS_LEVEL_EDIT;
-        }
-        if (!TextUtils.isEmpty(calendarOwnerAccount)
-                && calendarOwnerAccount.equalsIgnoreCase(e.organizer)) {
-            return ACCESS_LEVEL_EDIT;
-        }
-        return ACCESS_LEVEL_DELETE;
     }
 
     /**
@@ -4004,13 +3741,12 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
     class UpdateCurrentTime implements Runnable {
         public void run() {
             long currentTime = System.currentTimeMillis();
-            mCurrentTime.set(currentTime);
+            mCurrentTime.setTimeInMillis(currentTime);
             //% causes update to occur on 5 minute marks (11:10, 11:15, 11:20, etc.)
             if (!DayView.this.mPaused) {
                 mHandler.postDelayed(mUpdateCurrentTime, UPDATE_CURRENT_TIME_DELAY
                         - (currentTime % UPDATE_CURRENT_TIME_DELAY));
             }
-            mTodayJulianDay = Time.getJulianDay(currentTime, mCurrentTime.gmtoff);
             invalidate();
         }
     }

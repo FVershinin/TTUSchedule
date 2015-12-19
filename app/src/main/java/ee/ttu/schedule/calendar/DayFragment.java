@@ -35,6 +35,10 @@ import android.widget.ViewSwitcher.ViewFactory;
 
 import com.vadimstrukov.ttuschedule.R;
 
+import java.util.Calendar;
+import java.util.GregorianCalendar;
+import java.util.TimeZone;
+
 /**
  * This is the base class for Day and Week Activities.
  */
@@ -52,22 +56,8 @@ public class DayFragment extends Fragment implements CalendarController.EventHan
     protected Animation mInAnimationBackward;
     protected Animation mOutAnimationBackward;
     EventLoader mEventLoader;
-    Time mSelectedDay = new Time();
-    private final Runnable mTZUpdater = new Runnable() {
-        @Override
-        public void run() {
-            if (!DayFragment.this.isAdded()) {
-                return;
-            }
-            mSelectedDay.timezone = "EET";
-            mSelectedDay.normalize(true);
-        }
-    };
+    Calendar mSelectedDay;
     private int mNumDays;
-
-    public DayFragment() {
-        mSelectedDay.setToNow();
-    }
 
     public static DayFragment newInstance(long timeMillis, int numOfDays) {
         Bundle args = new Bundle();
@@ -83,10 +73,9 @@ public class DayFragment extends Fragment implements CalendarController.EventHan
         super.onCreate(icicle);
         Context context = getActivity();
         mNumDays = getArguments().getInt("NUM_OF_DAYS", 1);
-        if (getArguments().getLong("TIME_MILLIS", 0) == 0) {
-            mSelectedDay.setToNow();
-        } else {
-            mSelectedDay.set(getArguments().getInt("NUM_OF_DAYS"));
+        mSelectedDay = GregorianCalendar.getInstance(TimeZone.getDefault());
+        if (getArguments().getLong("TIME_MILLIS", 0) != 0) {
+            mSelectedDay.setTimeInMillis(getArguments().getLong("TIME_MILLIS"));
         }
         mInAnimationForward = AnimationUtils.loadAnimation(context, R.anim.slide_left_in);
         mOutAnimationForward = AnimationUtils.loadAnimation(context, R.anim.slide_left_out);
@@ -107,7 +96,6 @@ public class DayFragment extends Fragment implements CalendarController.EventHan
     }
 
     public View makeView() {
-        mTZUpdater.run();
         DayView view = new DayView(getActivity(), CalendarController
                 .getInstance(getActivity()), mViewSwitcher, mEventLoader, mNumDays);
         view.setId(View.generateViewId());
@@ -121,7 +109,6 @@ public class DayFragment extends Fragment implements CalendarController.EventHan
     public void onResume() {
         super.onResume();
         mEventLoader.startBackgroundThread();
-        mTZUpdater.run();
         eventsChanged();
         DayView view = (DayView) mViewSwitcher.getCurrentView();
         view.handleOnResume();
@@ -163,10 +150,10 @@ public class DayFragment extends Fragment implements CalendarController.EventHan
         mProgressBar.setVisibility(View.GONE);
     }
 
-    private void goTo(Time goToTime, boolean ignoreTime, boolean animateToday) {
+    private void goTo(Calendar goToTime, boolean ignoreTime, boolean animateToday) {
         if (mViewSwitcher == null) {
             // The view hasn't been set yet. Just save the time and use it later.
-            mSelectedDay.set(goToTime);
+            mSelectedDay = goToTime;
             return;
         }
         DayView currentView = (DayView) mViewSwitcher.getCurrentView();
@@ -254,7 +241,9 @@ public class DayFragment extends Fragment implements CalendarController.EventHan
 // TODO support a range of time
 // TODO support event_id
 // TODO support select message
-            goTo(msg.selectedTime, (msg.extraLong & CalendarController.EXTRA_GOTO_DATE) != 0,
+            Calendar calendar = (Calendar) mSelectedDay.clone();
+            calendar.setTimeInMillis(msg.selectedTime.toMillis(false));
+            goTo(calendar, (msg.extraLong & CalendarController.EXTRA_GOTO_DATE) != 0,
                     (msg.extraLong & CalendarController.EXTRA_GOTO_TODAY) != 0);
         } else if (msg.eventType == EventType.EVENTS_CHANGED) {
             eventsChanged();
