@@ -1,16 +1,25 @@
 package ee.ttu.schedule.service.adapter;
 
+import android.Manifest;
 import android.accounts.Account;
+import android.accounts.AccountManager;
 import android.content.AbstractThreadedSyncAdapter;
 import android.content.ContentProviderClient;
 import android.content.ContentProviderOperation;
+import android.content.ContentUris;
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.content.OperationApplicationException;
+import android.content.SharedPreferences;
 import android.content.SyncResult;
+import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.RemoteException;
 import android.preference.PreferenceManager;
+import android.provider.CalendarContract;
+import android.support.v4.app.ActivityCompat;
 import android.util.Log;
 
 import com.android.volley.DefaultRetryPolicy;
@@ -61,22 +70,21 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
                     groupsRequest.setRetryPolicy(new DefaultRetryPolicy(TIMEOUT, DefaultRetryPolicy.DEFAULT_MAX_RETRIES, DefaultRetryPolicy.DEFAULT_BACKOFF_MULT));
                     requestQueue.add(groupsRequest);
                     operations = getGroups(future.get(), provider, syncResult);
-
+                    provider.applyBatch(operations);
                     break;
                 case SYNC_EVENTS:
                     JsonObjectRequest eventRequest = new JsonObjectRequest(Request.Method.GET, String.format("%1$s/schedule?group=%2$s", URL, extras.get("group")), future, future);
                     eventRequest.setRetryPolicy(new DefaultRetryPolicy(TIMEOUT, DefaultRetryPolicy.DEFAULT_MAX_RETRIES, DefaultRetryPolicy.DEFAULT_BACKOFF_MULT));
                     requestQueue.add(eventRequest);
                     operations = getEvents(future.get(), provider, syncResult);
+                    getContext().getContentResolver().applyBatch(CalendarContract.AUTHORITY, operations);
                     break;
                 default:
                     return;
             }
-            provider.applyBatch(operations);
             broadcastIntent(Constants.SYNC_STATUS_OK);
             PreferenceManager.getDefaultSharedPreferences(getContext()).edit().putString("group", extras.getString("group")).commit();
-        }
-        catch (RemoteException | JSONException | InterruptedException | ExecutionException | OperationApplicationException e) {
+        } catch (RemoteException | JSONException | InterruptedException | ExecutionException | OperationApplicationException e) {
             broadcastIntent(Constants.SYNC_STATUS_FAILED);
         }
     }
@@ -85,14 +93,17 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
         ArrayList<ContentProviderOperation> operations = new ArrayList<>();
         Gson gson = new Gson();
         Event[] events = gson.fromJson(jsonObject.getJSONArray("events").toString(), Event[].class);
-        providerClient.delete(EventContract.Event.CONTENT_URI, null, null);
+        getContext().getContentResolver().delete(asSyncAdapter(CalendarContract.Calendars.CONTENT_URI, "TTU Schedule", "ee.ttu.schedule"), null, null);
+        long cal_id = createCalender();
+        PreferenceManager.getDefaultSharedPreferences(getContext()).edit().putLong(CalendarContract.Calendars._ID, cal_id).commit();
         for (Event event : events) {
-            operations.add(ContentProviderOperation.newInsert(EventContract.Event.CONTENT_URI)
-                    .withValue(EventContract.EventColumns.KEY_DT_START, event.getDateStart())
-                    .withValue(EventContract.EventColumns.KEY_DT_END, event.getDateEnd())
-                    .withValue(EventContract.EventColumns.KEY_DESCRIPTION, event.getDescription())
-                    .withValue(EventContract.EventColumns.KEY_LOCATION, event.getLocation())
-                    .withValue(EventContract.EventColumns.KEY_SUMMARY, event.getSummary()).build());
+            operations.add(ContentProviderOperation.newInsert(asSyncAdapter(CalendarContract.Events.CONTENT_URI, "TTU Schedule", "ee.ttu.schedule"))
+                    .withValue(CalendarContract.Events.DTSTART, event.getDateStart())
+                    .withValue(CalendarContract.Events.DTEND, event.getDateEnd())
+                    .withValue(CalendarContract.Events.TITLE, event.getSummary())
+                    .withValue(CalendarContract.Events.EVENT_LOCATION, event.getLocation())
+                    .withValue(CalendarContract.Events.DESCRIPTION, event.getDescription())
+                    .withValue(CalendarContract.Events.CALENDAR_ID, cal_id).build());
             syncResult.stats.numInserts++;
         }
         return operations;
@@ -111,10 +122,32 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter {
         return operations;
     }
 
+    private Long createCalender() {
+        final ContentValues contentValues = new ContentValues();
+        contentValues.put(CalendarContract.Calendars.ACCOUNT_NAME, "TTU Schedule");
+        contentValues.put(CalendarContract.Calendars.ACCOUNT_TYPE, "ee.ttu.schedule");
+        contentValues.put(CalendarContract.Calendars.NAME, "ttu_schedule");
+        contentValues.put(CalendarContract.Calendars.CALENDAR_DISPLAY_NAME, "TTU Schedule");
+        contentValues.put(CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL, CalendarContract.Calendars.CAL_ACCESS_READ);
+        contentValues.put(CalendarContract.Calendars.OWNER_ACCOUNT, "TTU Schedule");
+        contentValues.put(CalendarContract.Calendars.VISIBLE, 1);
+        contentValues.put(CalendarContract.Calendars.SYNC_EVENTS, 1);
+        final Uri uri = getContext().getContentResolver().insert(asSyncAdapter(CalendarContract.Calendars.CONTENT_URI, "TTU Schedule", "ee.ttu.schedule"), contentValues);
+        assert uri != null;
+        return Long.parseLong(uri.getLastPathSegment());
+    }
+
     private void broadcastIntent(int status) {
         Intent intent = new Intent();
         intent.setAction(Constants.SYNCHRONIZATION_ACTION);
         intent.putExtra(Constants.SYNC_STATUS, status);
         getContext().sendBroadcast(intent);
+    }
+
+    private static Uri asSyncAdapter(Uri uri, String account, String accountType) {
+        return uri.buildUpon()
+                .appendQueryParameter(CalendarContract.CALLER_IS_SYNCADAPTER, "true")
+                .appendQueryParameter(CalendarContract.Calendars.ACCOUNT_NAME, account)
+                .appendQueryParameter(CalendarContract.Calendars.ACCOUNT_TYPE, accountType).build();
     }
 }
