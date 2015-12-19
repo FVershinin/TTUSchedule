@@ -59,7 +59,6 @@ import android.view.animation.TranslateAnimation;
 import android.widget.EdgeEffect;
 import android.widget.ImageView;
 import android.widget.OverScroller;
-import android.widget.PopupWindow;
 import android.widget.TextView;
 import android.widget.ViewSwitcher;
 
@@ -82,7 +81,7 @@ import ee.ttu.schedule.calendar.CalendarController.ViewType;
 /**
  * View for multi-day view. So far only 1 and 7 day have been tested.
  */
-public class DayView extends View implements ScaleGestureDetector.OnScaleGestureListener, View.OnClickListener{
+public class DayView extends View implements ScaleGestureDetector.OnScaleGestureListener{
     private static String TAG = "DayView";
     private static boolean DEBUG = false;
     private static boolean DEBUG_SCALING = false;
@@ -112,15 +111,6 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
     private boolean mStartingScroll = false;
     protected boolean mPaused = true;
     private Handler mHandler;
-    /**
-     * ID of the last event which was displayed with the toast popup.
-     * <p>
-     * This is used to prevent popping up multiple quick views for the same event, especially
-     * during calendar syncs. This becomes valid when an event is selected, either by default
-     * on starting calendar or by scrolling to an event. It becomes invalid when the user
-     * explicitly scrolls to an empty time slot, changes views, or deletes the event.
-     */
-    private long mLastPopupEventID;
     protected Context mContext;
     private static final int FROM_NONE = 0;
     private static final int FROM_ABOVE = 1;
@@ -274,11 +264,6 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
     private final Paint mSelectionPaint = new Paint();
     private float[] mLines;
     private int mFirstDayOfWeek; // First day of the week
-    private PopupWindow mPopup;
-    private View mPopupView;
-    // The number of milliseconds to show the popup window
-    private static final int POPUP_DISMISS_DELAY = 3000;
-    private final DismissPopup mDismissPopup = new DismissPopup();
     private boolean mRemeasure = true;
     private final EventLoader mEventLoader;
     protected final EventGeometry mEventGeometry;
@@ -477,7 +462,7 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
     private String[] mDayStrs2Letter;
     private final ArrayList<Event> mSelectedEvents = new ArrayList<>();
     private boolean mComputeSelectedEvents;
-    private boolean mUpdateToast;
+    private boolean mUpdateToast = true;
     private Event mSelectedEvent;
     private Event mPrevSelectedEvent;
     private final Rect mPrevBox = new Rect();
@@ -629,7 +614,6 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
         mEventGeometry.setMinEventHeight(MIN_EVENT_HEIGHT);
         mEventGeometry.setHourGap(HOUR_GAP);
         mEventGeometry.setCellMargin(DAY_GAP);
-        mLastPopupEventID = INVALID_EVENT_ID;
         mController = controller;
         mViewSwitcher = viewSwitcher;
         mGestureDetector = new GestureDetector(context, new CalendarGestureListener());
@@ -722,20 +706,11 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
         mHoursWidth = Math.max(MIN_HOURS_WIDTH, mHoursWidth);
         LayoutInflater inflater;
         inflater = (LayoutInflater) context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
-        mPopupView = inflater.inflate(R.layout.bubble_event, null);
-        mPopupView.setLayoutParams(new ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT));
-        mPopup = new PopupWindow(context);
-        mPopup.setContentView(mPopupView);
         Resources.Theme dialogTheme = getResources().newTheme();
         dialogTheme.applyStyle(android.R.style.Theme_Dialog, true);
         TypedArray ta = dialogTheme.obtainStyledAttributes(new int[]{
                 android.R.attr.windowBackground});
-        mPopup.setBackgroundDrawable(ta.getDrawable(0));
         ta.recycle();
-        // Enable touching the popup window
-        mPopupView.setOnClickListener(this);
         // Catch long clicks for creating a new event
         mBaseDate = GregorianCalendar.getInstance(TimeZone.getDefault());
         mEarliestStartHour = new int[mNumDays];
@@ -749,16 +724,7 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
         mLines = new float[maxGridLines * 4];
     }
 
-    /**
-     * This is called when the popup window is pressed.
-     */
-    public void onClick(View v) {
-        if (v == mPopupView) {
-            // Pretend it was a trackball click because that will always
-            // jump to the "View event" screen.
-            switchViews(true /* trackball */);
-        }
-    }
+
 
     public void handleOnResume() {
         mFutureBgColor = mFutureBgColorRes;
@@ -1033,13 +999,6 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
             mFirstHourOffset = mCellHeight + HOUR_GAP - 1;
         }
         mViewStartY = mFirstHour * (mCellHeight + HOUR_GAP) - mFirstHourOffset;
-        final int eventAreaWidth = mNumDays * (mCellWidth + DAY_GAP);
-        //When we get new events we don't want to dismiss the popup unless the event changes
-        if (mSelectedEvent != null && mLastPopupEventID != mSelectedEvent.id) {
-            mPopup.dismiss();
-        }
-        mPopup.setWidth(eventAreaWidth - 20);
-        mPopup.setHeight(WindowManager.LayoutParams.WRAP_CONTENT);
     }
 
     /**
@@ -1062,76 +1021,9 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
         view.mPrevSelectedEvent = null;
         view.mFirstDayOfWeek = mFirstDayOfWeek;
         view.mSelectionAllday = view.mEvents.size() > 0 && mSelectionAllday;
-// Redraw the screen so that the selection box will be redrawn.  We may
-        // have scrolled to a different part of the day in some other view
-        // so the selection box in this view may no longer be visible.
         view.recalc();
     }
 
-    /**
-     * Switch to another view based on what was selected (an event or a free
-     * slot) and how it was selected (by touch or by trackball).
-     *
-     * @param trackBallSelection true if the selection was made using the
-     *                           trackball.
-     */
-    private void switchViews(boolean trackBallSelection) {
-        Event selectedEvent = mSelectedEvent;
-        mPopup.dismiss();
-        mLastPopupEventID = INVALID_EVENT_ID;
-        if (mNumDays > 1) {
-            // This is the Week view.
-            // With touch, we always switch to Day/Agenda View
-            // With track ball, if we selected a free slot, then create an event.
-            // If we selected a specific event, switch to EventInfo view.
-            if (trackBallSelection) {
-                if (selectedEvent == null) {
-                    // Switch to the EditEvent view
-                    long startMillis = getSelectedTimeInMillis();
-                    long endMillis = startMillis + DateUtils.HOUR_IN_MILLIS;
-                    long extraLong = 0;
-                    if (mSelectionAllday) {
-                        extraLong = CalendarController.EXTRA_CREATE_ALL_DAY;
-                    }
-                    mController.sendEventRelatedEventWithExtra(this, EventType.CREATE_EVENT, -1,
-                            startMillis, endMillis, -1, -1, extraLong, -1);
-                } else {
-                    // Switch to the EventInfo view
-                    mController.sendEventRelatedEvent(this, EventType.VIEW_EVENT, selectedEvent.id,
-                            selectedEvent.startMillis, selectedEvent.endMillis, 0, 0,
-                            getSelectedTimeInMillis());
-                }
-            } else {
-                // This was a touch selection.  If the touch selected a single
-                // unambiguous event, then view that event.  Otherwise go to
-                // Day/Agenda view.
-                if (mSelectedEvents.size() == 1) {
-                    mController.sendEventRelatedEvent(this, EventType.VIEW_EVENT, selectedEvent.id,
-                            selectedEvent.startMillis, selectedEvent.endMillis, 0, 0,
-                            getSelectedTimeInMillis());
-                }
-            }
-        } else {
-            // This is the Day view.
-            // If we selected a free slot, then create an event.
-            // If we selected an event, then go to the EventInfo view.
-            if (selectedEvent == null) {
-                // Switch to the EditEvent view
-                long startMillis = getSelectedTimeInMillis();
-                long endMillis = startMillis + DateUtils.HOUR_IN_MILLIS;
-                long extraLong = 0;
-                if (mSelectionAllday) {
-                    extraLong = CalendarController.EXTRA_CREATE_ALL_DAY;
-                }
-                mController.sendEventRelatedEventWithExtra(this, EventType.CREATE_EVENT, -1,
-                        startMillis, endMillis, -1, -1, extraLong, -1);
-            } else {
-                mController.sendEventRelatedEvent(this, EventType.VIEW_EVENT, selectedEvent.id,
-                        selectedEvent.startMillis, selectedEvent.endMillis, 0, 0,
-                        getSelectedTimeInMillis());
-            }
-        }
-    }
 
     @Override
     public boolean onHoverEvent(MotionEvent event) {
@@ -1556,10 +1448,6 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
         }
         // Draw the fixed areas (that don't scroll) directly to the canvas.
         drawAfterScroll(canvas);
-        if (mComputeSelectedEvents && mUpdateToast) {
-            updateEventDetails();
-            mUpdateToast = false;
-        }
         mComputeSelectedEvents = false;
         // Draw overscroll glow
         if (!mEdgeEffectTop.isFinished()) {
@@ -2407,17 +2295,7 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
             if (bottom > box.bottom) {
                 bottom = box.bottom;
             }
-//            if (false) {
-//                int flags = DateUtils.FORMAT_SHOW_TIME | DateUtils.FORMAT_ABBREV_ALL
-//                        | DateUtils.FORMAT_CAP_NOON_MIDNIGHT;
-//                if (DateFormat.is24HourFormat(mContext)) {
-//                    flags |= DateUtils.FORMAT_24HOUR;
-//                }
-//                String timeRange = DateUtils.formatDateRange(mContext, ev.startMillis,
-//                        ev.endMillis, flags);
-//                Log.i("Cal", "left: " + left + " right: " + right + " top: " + top + " bottom: "
-//                        + bottom + " ev: " + timeRange + " " + ev.title);
-//            }
+
             int upDistanceMin = 10000; // any large number
             int downDistanceMin = 10000; // any large number
             int leftDistanceMin = 10000; // any large number
@@ -2660,21 +2538,6 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
             }
             p.setAntiAlias(true);
         }
-        // Draw cal color square border
-        // r.top = (int) event.top + CALENDAR_COLOR_SQUARE_V_OFFSET;
-        // r.left = (int) event.left + CALENDAR_COLOR_SQUARE_H_OFFSET;
-        // r.bottom = r.top + CALENDAR_COLOR_SQUARE_SIZE + 1;
-        // r.right = r.left + CALENDAR_COLOR_SQUARE_SIZE + 1;
-        // p.setColor(0xFFFFFFFF);
-        // canvas.drawRect(r, p);
-        // Draw cal color
-        // r.top++;
-        // r.left++;
-        // r.bottom--;
-        // r.right--;
-        // p.setColor(event.color);
-        // canvas.drawRect(r, p);
-        // Setup rect for drawEventText which follows
         r.top = (int) event.top + EVENT_RECT_TOP_MARGIN;
         r.bottom = (int) event.bottom - EVENT_RECT_BOTTOM_MARGIN;
         r.left = (int) event.left + EVENT_RECT_LEFT_MARGIN;
@@ -2741,74 +2604,6 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
         canvas.clipRect(rect);
         eventLayout.draw(canvas);
         canvas.restore();
-    }
-
-    // This is to replace p.setStyle(Style.STROKE); canvas.drawRect() since it
-    // doesn't work well with hardware acceleration
-//    private void drawEmptyRect(Canvas canvas, Rect r, int color) {
-//        int linesIndex = 0;
-//        mLines[linesIndex++] = r.left;
-//        mLines[linesIndex++] = r.top;
-//        mLines[linesIndex++] = r.right;
-//        mLines[linesIndex++] = r.top;
-//
-//        mLines[linesIndex++] = r.left;
-//        mLines[linesIndex++] = r.bottom;
-//        mLines[linesIndex++] = r.right;
-//        mLines[linesIndex++] = r.bottom;
-//
-//        mLines[linesIndex++] = r.left;
-//        mLines[linesIndex++] = r.top;
-//        mLines[linesIndex++] = r.left;
-//        mLines[linesIndex++] = r.bottom;
-//
-//        mLines[linesIndex++] = r.right;
-//        mLines[linesIndex++] = r.top;
-//        mLines[linesIndex++] = r.right;
-//        mLines[linesIndex++] = r.bottom;
-//        mPaint.setColor(color);
-//        canvas.drawLines(mLines, 0, linesIndex, mPaint);
-//    }
-    private void updateEventDetails() {
-        if (mSelectedEvent == null || mSelectionMode == SELECTION_HIDDEN
-                || mSelectionMode == SELECTION_LONGPRESS) {
-            mPopup.dismiss();
-            return;
-        }
-        if (mLastPopupEventID == mSelectedEvent.id) {
-            return;
-        }
-        mLastPopupEventID = mSelectedEvent.id;
-        // Remove any outstanding callbacks to dismiss the popup.
-        mHandler.removeCallbacks(mDismissPopup);
-        Event event = mSelectedEvent;
-        TextView titleView = (TextView) mPopupView.findViewById(R.id.event_title);
-        titleView.setText(event.title);
-        ImageView imageView = (ImageView) mPopupView.findViewById(R.id.reminder_icon);
-        imageView.setVisibility(event.hasAlarm ? View.VISIBLE : View.GONE);
-        imageView = (ImageView) mPopupView.findViewById(R.id.repeat_icon);
-        imageView.setVisibility(event.isRepeating ? View.VISIBLE : View.GONE);
-        int flags;
-        if (event.allDay) {
-            flags = DateUtils.FORMAT_UTC | DateUtils.FORMAT_SHOW_DATE
-                    | DateUtils.FORMAT_SHOW_WEEKDAY | DateUtils.FORMAT_ABBREV_ALL;
-        } else {
-            flags = DateUtils.FORMAT_SHOW_TIME | DateUtils.FORMAT_SHOW_DATE
-                    | DateUtils.FORMAT_SHOW_WEEKDAY | DateUtils.FORMAT_ABBREV_ALL
-                    | DateUtils.FORMAT_CAP_NOON_MIDNIGHT;
-        }
-        if (DateFormat.is24HourFormat(mContext)) {
-            flags |= DateUtils.FORMAT_24HOUR;
-        }
-        String timeRange = DateUtils.formatDateRange(mContext, event.startMillis, event.endMillis, flags);
-        TextView timeView = (TextView) mPopupView.findViewById(R.id.time);
-        timeView.setText(timeRange);
-        TextView whereView = (TextView) mPopupView.findViewById(R.id.where);
-        final boolean empty = TextUtils.isEmpty(event.location);
-        whereView.setVisibility(empty ? View.GONE : View.VISIBLE);
-        if (!empty) whereView.setText(event.location);
-        mPopup.showAtLocation(this, Gravity.BOTTOM | Gravity.START, mHoursWidth, 5);
-        mHandler.postDelayed(mDismissPopup, POPUP_DISMISS_DELAY);
     }
 
     // The following routines are called from the parent activity when certain
@@ -3642,14 +3437,8 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
      * Cleanup the pop-up and timers.
      */
     public void cleanup() {
-        // Protect against null-pointer exceptions
-        if (mPopup != null) {
-            mPopup.dismiss();
-        }
         mPaused = true;
-        mLastPopupEventID = INVALID_EVENT_ID;
         if (mHandler != null) {
-            mHandler.removeCallbacks(mDismissPopup);
             mHandler.removeCallbacks(mUpdateCurrentTime);
         }
         // Clear all click animations
@@ -3694,15 +3483,6 @@ public class DayView extends View implements ScaleGestureDetector.OnScaleGesture
     protected void onDetachedFromWindow() {
         cleanup();
         super.onDetachedFromWindow();
-    }
-
-    class DismissPopup implements Runnable {
-        public void run() {
-            // Protect against null-pointer exceptions
-            if (mPopup != null) {
-                mPopup.dismiss();
-            }
-        }
     }
 
     class UpdateCurrentTime implements Runnable {
