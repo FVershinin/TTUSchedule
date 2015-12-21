@@ -90,8 +90,14 @@ public class ScheduleFragment extends Fragment implements WeekViewLoader, WeekVi
                 mNumberOfVisibleDays = 3;
                 break;
         }
-        if(mWeekView != null)
+        if(mWeekView != null){
+            final Calendar calendar = mWeekView.getLastVisibleDay();
+            if(mWeekView.getNumberOfVisibleDays() == 3)
+                calendar.add(Calendar.DAY_OF_WEEK, -2);
             mWeekView.setNumberOfVisibleDays(mNumberOfVisibleDays);
+            mWeekView.goToDate(calendar);
+            mWeekView.goToHour(calendar.get(Calendar.HOUR_OF_DAY));
+        }
     }
 
     @Override
@@ -112,8 +118,6 @@ public class ScheduleFragment extends Fragment implements WeekViewLoader, WeekVi
         super.onCreate(savedInstanceState);
         syncUtils = new SyncUtils(getActivity());
         colorArray = getResources().getStringArray(R.array.colors);
-        if (getArguments() != null)
-            setTypeView(getArguments().getInt(ARG_TYPE, TYPE_DAY_VIEW));
         setHasOptionsMenu(true);
         getLoaderManager().restartLoader(0, null, this);
     }

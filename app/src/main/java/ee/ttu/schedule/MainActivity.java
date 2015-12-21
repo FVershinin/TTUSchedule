@@ -57,8 +57,8 @@ public class MainActivity extends AppCompatActivity implements Drawer.OnDrawerIt
         assert drawerItem != null;
         switch (drawerItem.getIdentifier()) {
             case 0:
-                fragment = getFragmentManager().findFragmentByTag(ScheduleFragment.TAG);
                 ((ScheduleFragment)fragment).setTypeView(ScheduleFragment.TYPE_DAY_VIEW);
+                fragment = getFragmentManager().findFragmentByTag(ScheduleFragment.TAG);
                 break;
             case 1:
                 fragment = getFragmentManager().findFragmentByTag(ScheduleFragment.TAG);
@@ -81,7 +81,7 @@ public class MainActivity extends AppCompatActivity implements Drawer.OnDrawerIt
 
     @Override
     public void onDrawerClosed(View drawerView) {
-        getFragmentManager().beginTransaction().replace(R.id.fragment, fragment).commit();
+        getFragmentManager().beginTransaction().replace(R.id.fragment, fragment).addToBackStack("test").commit();
     }
 
     @Override
