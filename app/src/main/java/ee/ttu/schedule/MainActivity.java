@@ -57,8 +57,8 @@ public class MainActivity extends AppCompatActivity implements Drawer.OnDrawerIt
         assert drawerItem != null;
         switch (drawerItem.getIdentifier()) {
             case 0:
-                ((ScheduleFragment)fragment).setTypeView(ScheduleFragment.TYPE_DAY_VIEW);
                 fragment = getFragmentManager().findFragmentByTag(ScheduleFragment.TAG);
+                ((ScheduleFragment)fragment).setTypeView(ScheduleFragment.TYPE_DAY_VIEW);
                 break;
             case 1:
                 fragment = getFragmentManager().findFragmentByTag(ScheduleFragment.TAG);

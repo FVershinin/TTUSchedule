@@ -96,7 +96,7 @@ public class ScheduleFragment extends Fragment implements WeekViewLoader, WeekVi
                 calendar.add(Calendar.DAY_OF_WEEK, -2);
             mWeekView.setNumberOfVisibleDays(mNumberOfVisibleDays);
             mWeekView.goToDate(calendar);
-            mWeekView.goToHour(calendar.get(Calendar.HOUR_OF_DAY));
+            mWeekView.goToHour(8);
         }
     }
 
@@ -136,8 +136,6 @@ public class ScheduleFragment extends Fragment implements WeekViewLoader, WeekVi
         mWeekView.setEventTextSize((int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 12, getResources().getDisplayMetrics()));
         mWeekView.setDateTimeInterpreter(this);
         mWeekView.setNumberOfVisibleDays(mNumberOfVisibleDays);
-        mWeekView.goToToday();
-        mWeekView.goToHour(getToday().get(Calendar.HOUR_OF_DAY));
         return rootView;
     }
 
@@ -171,7 +169,7 @@ public class ScheduleFragment extends Fragment implements WeekViewLoader, WeekVi
         switch (item.getItemId()) {
             case R.id.action_today:
                 mWeekView.goToToday();
-                mWeekView.goToHour(getToday().get(Calendar.HOUR_OF_DAY));
+                mWeekView.goToHour(8);
                 return true;
             case R.id.action_update:
                 syncUtils.syncEvents(PreferenceManager.getDefaultSharedPreferences(getActivity().getBaseContext()).getString(Constants.GROUP, null));
@@ -298,6 +296,6 @@ public class ScheduleFragment extends Fragment implements WeekViewLoader, WeekVi
     }
 
     private Calendar getToday(){
-        return GregorianCalendar.getInstance(TimeZone.getTimeZone("UTC"));
+        return GregorianCalendar.getInstance(TimeZone.getDefault());
     }
 }

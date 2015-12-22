@@ -22,6 +22,9 @@
             app:hourHeight="40dp"
             app:noOfVisibleDays="3"
             app:textSize="12sp"
+            app:showNowLine="true"
+            app:showDistinctPastFutureColor="true"
+            app:futureBackgroundColor="@android:color/white"
             app:todayBackgroundColor="#1848adff"
             app:xScrollingSpeed="1"/>
     </android.support.v4.widget.SwipeRefreshLayout>
