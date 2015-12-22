@@ -23,13 +23,13 @@ public class SyncUtils {
 
     public void syncGroups(){
         Bundle bundle = new Bundle();
-        bundle.putInt(SyncAdapter.SYNC_TYPE, SyncAdapter.SYNC_GROUPS);
+        bundle.putInt(SyncAdapter.SYNC_TYPE, SyncAdapter.SYNC_LIST_OF_SCHEDULES);
         sync(bundle);
     }
 
     public void syncEvents(String group){
         Bundle bundle = new Bundle();
-        bundle.putInt(SyncAdapter.SYNC_TYPE, SyncAdapter.SYNC_EVENTS);
+        bundle.putInt(SyncAdapter.SYNC_TYPE, SyncAdapter.SYNC_SCHEDULE);
         bundle.putString("group", group);
         sync(bundle);
     }
